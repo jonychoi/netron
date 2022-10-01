@@ -25,21 +25,20 @@ json.TextReader = class {
                 case 'start':
                     if (c === '#') {
                         state = 'comment';
-                        break;
                     }
-                    if (c === '[') {
+                    else if (c === '[') {
                         state = 'list';
-                        break;
                     }
-                    if (c === '{') {
+                    else if (c === '{') {
                         state = 'object';
-                        break;
                     }
-                    if (c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z') {
+                    else if (c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z') {
                         state = '';
-                        break;
                     }
-                    return null;
+                    else {
+                        return null;
+                    }
+                    break;
                 case 'list':
                     if (c === '"' || c === '-' || c === '+' || c === '{' || c === '[' || (c >= '0' && c <= '9')) {
                         state = '';
@@ -411,12 +410,11 @@ json.TextReader = class {
 json.BinaryReader = class {
 
     static open(data) {
-        const buffer = data instanceof Uint8Array ? data : data.peek();
-        return new json.BinaryReader(buffer);
+        return data ? new json.BinaryReader(data) : null;
     }
 
-    constructor(buffer) {
-        this._buffer = buffer;
+    constructor(data) {
+        this._buffer = data instanceof Uint8Array ? data : data.peek();
     }
 
     read() {

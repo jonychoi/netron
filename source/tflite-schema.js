@@ -190,6 +190,25 @@ $root.tflite.SparsityParameters = class SparsityParameters {
     }
 };
 
+$root.tflite.VariantSubType = class VariantSubType {
+
+    static decode(reader, position) {
+        const $ = new $root.tflite.VariantSubType();
+        $.shape = reader.typedArray(position, 4, Int32Array);
+        $.type = reader.int8_(position, 6, 0);
+        $.has_rank = reader.bool_(position, 8, false);
+        return $;
+    }
+
+    static decodeText(reader, json) {
+        const $ = new $root.tflite.VariantSubType();
+        $.shape = reader.typedArray(json.shape, Int32Array);
+        $.type = $root.tflite.TensorType[json.type];
+        $.has_rank = reader.value(json.has_rank, false);
+        return $;
+    }
+};
+
 $root.tflite.Tensor = class Tensor {
 
     static decode(reader, position) {
@@ -202,6 +221,8 @@ $root.tflite.Tensor = class Tensor {
         $.is_variable = reader.bool_(position, 14, false);
         $.sparsity = reader.table(position, 16, $root.tflite.SparsityParameters.decode);
         $.shape_signature = reader.typedArray(position, 18, Int32Array);
+        $.has_rank = reader.bool_(position, 20, false);
+        $.variant_tensors = reader.tableArray(position, 22, $root.tflite.VariantSubType.decode);
         return $;
     }
 
@@ -215,6 +236,8 @@ $root.tflite.Tensor = class Tensor {
         $.is_variable = reader.value(json.is_variable, false);
         $.sparsity = reader.object(json.sparsity, $root.tflite.SparsityParameters.decodeText);
         $.shape_signature = reader.typedArray(json.shape_signature, Int32Array);
+        $.has_rank = reader.value(json.has_rank, false);
+        $.variant_tensors = reader.objectArray(json.variant_tensors, $root.tflite.VariantSubType.decodeText);
         return $;
     }
 };
@@ -373,7 +396,12 @@ $root.tflite.BuiltinOperator = {
     GELU: 150,
     DYNAMIC_UPDATE_SLICE: 151,
     RELU_0_TO_1: 152,
-    UNSORTED_SEGMENT_PROD: 153
+    UNSORTED_SEGMENT_PROD: 153,
+    UNSORTED_SEGMENT_MAX: 154,
+    UNSORTED_SEGMENT_SUM: 155,
+    ATAN2: 156,
+    UNSORTED_SEGMENT_MIN: 157,
+    SIGN: 158
 };
 
 $root.tflite.BuiltinOptions = class {
@@ -498,6 +526,11 @@ $root.tflite.BuiltinOptions = class {
             case 116: return $root.tflite.GeluOptions.decode(reader, position);
             case 117: return $root.tflite.DynamicUpdateSliceOptions.decode(reader, position);
             case 118: return $root.tflite.UnsortedSegmentProdOptions.decode(reader, position);
+            case 119: return $root.tflite.UnsortedSegmentMaxOptions.decode(reader, position);
+            case 120: return $root.tflite.UnsortedSegmentMinOptions.decode(reader, position);
+            case 121: return $root.tflite.UnsortedSegmentSumOptions.decode(reader, position);
+            case 122: return $root.tflite.ATan2Options.decode(reader, position);
+            case 123: return $root.tflite.SignOptions.decode(reader, position);
             default: return undefined;
         }
     }
@@ -622,6 +655,11 @@ $root.tflite.BuiltinOptions = class {
             case 'GeluOptions': return $root.tflite.GeluOptions.decodeText(reader, json);
             case 'DynamicUpdateSliceOptions': return $root.tflite.DynamicUpdateSliceOptions.decodeText(reader, json);
             case 'UnsortedSegmentProdOptions': return $root.tflite.UnsortedSegmentProdOptions.decodeText(reader, json);
+            case 'UnsortedSegmentMaxOptions': return $root.tflite.UnsortedSegmentMaxOptions.decodeText(reader, json);
+            case 'UnsortedSegmentMinOptions': return $root.tflite.UnsortedSegmentMinOptions.decodeText(reader, json);
+            case 'UnsortedSegmentSumOptions': return $root.tflite.UnsortedSegmentSumOptions.decodeText(reader, json);
+            case 'ATan2Options': return $root.tflite.ATan2Options.decodeText(reader, json);
+            case 'SignOptions': return $root.tflite.SignOptions.decodeText(reader, json);
             default: return undefined;
         }
     }
@@ -2479,15 +2517,78 @@ $root.tflite.DynamicUpdateSliceOptions = class DynamicUpdateSliceOptions {
 
 $root.tflite.UnsortedSegmentProdOptions = class UnsortedSegmentProdOptions {
 
-    static decode(reader, position) {
+    static decode(/* reader, position */) {
         const $ = new $root.tflite.UnsortedSegmentProdOptions();
-        $.num_segments = reader.int32_(position, 4, 0);
         return $;
     }
 
-    static decodeText(reader, json) {
+    static decodeText(/* reader, json */) {
         const $ = new $root.tflite.UnsortedSegmentProdOptions();
-        $.num_segments = reader.value(json.num_segments, 0);
+        return $;
+    }
+};
+
+$root.tflite.UnsortedSegmentMaxOptions = class UnsortedSegmentMaxOptions {
+
+    static decode(/* reader, position */) {
+        const $ = new $root.tflite.UnsortedSegmentMaxOptions();
+        return $;
+    }
+
+    static decodeText(/* reader, json */) {
+        const $ = new $root.tflite.UnsortedSegmentMaxOptions();
+        return $;
+    }
+};
+
+$root.tflite.UnsortedSegmentSumOptions = class UnsortedSegmentSumOptions {
+
+    static decode(/* reader, position */) {
+        const $ = new $root.tflite.UnsortedSegmentSumOptions();
+        return $;
+    }
+
+    static decodeText(/* reader, json */) {
+        const $ = new $root.tflite.UnsortedSegmentSumOptions();
+        return $;
+    }
+};
+
+$root.tflite.ATan2Options = class ATan2Options {
+
+    static decode(/* reader, position */) {
+        const $ = new $root.tflite.ATan2Options();
+        return $;
+    }
+
+    static decodeText(/* reader, json */) {
+        const $ = new $root.tflite.ATan2Options();
+        return $;
+    }
+};
+
+$root.tflite.UnsortedSegmentMinOptions = class UnsortedSegmentMinOptions {
+
+    static decode(/* reader, position */) {
+        const $ = new $root.tflite.UnsortedSegmentMinOptions();
+        return $;
+    }
+
+    static decodeText(/* reader, json */) {
+        const $ = new $root.tflite.UnsortedSegmentMinOptions();
+        return $;
+    }
+};
+
+$root.tflite.SignOptions = class SignOptions {
+
+    static decode(/* reader, position */) {
+        const $ = new $root.tflite.SignOptions();
+        return $;
+    }
+
+    static decodeText(/* reader, json */) {
+        const $ = new $root.tflite.SignOptions();
         return $;
     }
 };
@@ -2703,6 +2804,7 @@ $root.tflite.AssociatedFile = class AssociatedFile {
         $.description = reader.string_(position, 6, null);
         $.type = reader.int8_(position, 8, 0);
         $.locale = reader.string_(position, 10, null);
+        $.version = reader.string_(position, 12, null);
         return $;
     }
 };

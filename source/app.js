@@ -6,6 +6,7 @@ const os = require('os');
 const path = require('path');
 const process = require('process');
 const url = require('url');
+const base = require('./base');
 
 class Application {
 
@@ -15,6 +16,10 @@ class Application {
         this._configuration = new ConfigurationService();
         this._menu = new MenuService();
         this._openQueue = [];
+
+        const packageFile = path.join(path.dirname(__dirname), 'package.json');
+        const packageContent = fs.readFileSync(packageFile, 'utf-8');
+        this._package = JSON.parse(packageContent);
 
         electron.app.setAppUserModelId('com.lutzroeder.netron');
         electron.app.allowRendererProcessReuse = true;
@@ -47,7 +52,8 @@ class Application {
         electron.ipcMain.on('get-environment', (event) => {
             event.returnValue = {
                 version: electron.app.getVersion(),
-                package: electron.app.isPackaged
+                packaged: electron.app.isPackaged,
+                date: this._package.date
             };
         });
         electron.ipcMain.on('get-configuration', (event, obj) => {
@@ -155,26 +161,10 @@ class Application {
     }
 
     _openFileDialog() {
+        const extensions = new base.Metadata().extensions;
         const showOpenDialogOptions = {
             properties: [ 'openFile' ],
-            filters: [
-                { name: 'All Model Files',  extensions: [
-                    'onnx', 'ort', 'pb',
-                    'h5', 'hd5', 'hdf5', 'json', 'keras',
-                    'mlmodel', 'mlpackage',
-                    'caffemodel',
-                    'model', 'dnn', 'dlc', 'cmf', 'mar', 'params',
-                    'pdmodel', 'pdiparams', 'pdparams', 'pdopt', 'nb',
-                    'meta',
-                    'tflite', 'lite', 'tfl',
-                    'armnn', 'mnn', 'nn', 'uff', 'uff.txt', 'rknn', 'xmodel', 'kmodel',
-                    'ncnn', 'param', 'tnnproto', 'tmfile', 'ms', 'om',
-                    'pt', 'pth', 'ptl', 't7',
-                    'pkl', 'joblib',
-                    'pbtxt', 'prototxt',
-                    'cfg', 'xml',
-                    'zip', 'tar' ] }
-            ]
+            filters: [ { name: 'All Model Files', extensions: extensions } ]
         };
         const selectedFiles = electron.dialog.showOpenDialogSync(showOpenDialogOptions);
         if (selectedFiles) {
@@ -297,16 +287,6 @@ class Application {
         }
     }
 
-    get package() {
-        if (!this._package) {
-            const file = path.join(path.dirname(__dirname), 'package.json');
-            const data = fs.readFileSync(file);
-            this._package = JSON.parse(data);
-            this._package.date = new Date(fs.statSync(file).mtime);
-        }
-        return this._package;
-    }
-
     _about() {
         let dialog = null;
         const options = {
@@ -351,10 +331,10 @@ class Application {
                 }
             });
             let content = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf-8');
-            content = content.replace('{version}', this.package.version);
+            content = content.replace('{version}', this._package.version);
             content = content.replace('<title>Netron</title>', '');
             content = content.replace('<body class="welcome spinner">', '<body class="about desktop">');
-            content = content.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+            content = content.replace(/<script\b[^<]*(?:(?!<\/script\s*>)<[^<]*)*<\/script\s*>/gi, '');
             content = content.replace(/<link.*>/gi, '');
             dialog.once('ready-to-show', () => {
                 dialog.resizable = false;
@@ -407,7 +387,7 @@ class Application {
                     path: recent.path,
                     label: Application.minimizePath(recent.path),
                     accelerator: ((process.platform === 'darwin') ? 'Cmd+' : 'Ctrl+') + (i + 1).toString(),
-                    click: (item) => { this._openPath(item.path); }
+                    click: (item) => this._openPath(item.path)
                 });
             }
         }
@@ -438,7 +418,7 @@ class Application {
                 {
                     label: '&Open...',
                     accelerator: 'CmdOrCtrl+O',
-                    click: () => { this._openFileDialog(); }
+                    click: () => this._openFileDialog()
                 },
                 {
                     label: 'Open &Recent',
@@ -526,7 +506,7 @@ class Application {
                 {
                     id: 'view.toggle-direction',
                     accelerator: 'CmdOrCtrl+K',
-                    click: () => { this.execute('toggle', 'direction'); }
+                    click: () => this.execute('toggle', 'direction')
                 },
                 {
                     id: 'view.toggle-mousewheel',
@@ -589,11 +569,11 @@ class Application {
         const helpSubmenu = [
             {
                 label: '&Search Feature Requests',
-                click: () => { electron.shell.openExternal('https://www.github.com/' + this.package.repository + '/issues'); }
+                click: () => electron.shell.openExternal('https://www.github.com/' + this._package.repository + '/issues')
             },
             {
                 label: 'Report &Issues',
-                click: () => { electron.shell.openExternal('https://www.github.com/' + this.package.repository + '/issues/new'); }
+                click: () => electron.shell.openExternal('https://www.github.com/' + this._package.repository + '/issues/new')
             }
         ];
 
@@ -612,57 +592,57 @@ class Application {
 
         const commandTable = new Map();
         commandTable.set('file.export', {
-            enabled: (context) => { return context.view && context.view.path ? true : false; }
+            enabled: (context) => context.view && context.view.path ? true : false
         });
         commandTable.set('edit.cut', {
-            enabled: (context) => { return context.view && context.view.path ? true : false; }
+            enabled: (context) => context.view && context.view.path ? true : false
         });
         commandTable.set('edit.copy', {
-            enabled: (context) => { return context.view && context.view.path ? true : false; }
+            enabled: (context) => context.view && context.view.path ? true : false
         });
         commandTable.set('edit.paste', {
-            enabled: (context) => { return context.view && context.view.path ? true : false; }
+            enabled: (context) => context.view && context.view.path ? true : false
         });
         commandTable.set('edit.select-all', {
-            enabled: (context) => { return context.view && context.view.path ? true : false; }
+            enabled: (context) => context.view && context.view.path ? true : false
         });
         commandTable.set('edit.find', {
-            enabled: (context) => { return context.view && context.view.path ? true : false; }
+            enabled: (context) => context.view && context.view.path ? true : false
         });
         commandTable.set('view.toggle-attributes', {
-            enabled: (context) => { return context.view && context.view.path ? true : false; },
-            label: (context) => { return !context.view || context.view.get('attributes') ? 'Hide &Attributes' : 'Show &Attributes'; }
+            enabled: (context) => context.view && context.view.path ? true : false,
+            label: (context) => !context.view || context.view.get('attributes') ? 'Hide &Attributes' : 'Show &Attributes'
         });
         commandTable.set('view.toggle-initializers', {
-            enabled: (context) => { return context.view && context.view.path ? true : false; },
-            label: (context) => { return !context.view || context.view.get('initializers') ? 'Hide &Initializers' : 'Show &Initializers'; }
+            enabled: (context) => context.view && context.view.path ? true : false,
+            label: (context) => !context.view || context.view.get('initializers') ? 'Hide &Initializers' : 'Show &Initializers'
         });
         commandTable.set('view.toggle-names', {
-            enabled: (context) => { return context.view && context.view.path ? true : false; },
-            label: (context) => { return !context.view || context.view.get('names') ? 'Hide &Names' : 'Show &Names'; }
+            enabled: (context) => context.view && context.view.path ? true : false,
+            label: (context) => !context.view || context.view.get('names') ? 'Hide &Names' : 'Show &Names'
         });
         commandTable.set('view.toggle-direction', {
-            enabled: (context) => { return context.view && context.view.path ? true : false; },
-            label: (context) => { return !context.view || context.view.get('direction') === 'vertical' ? 'Show &Horizontal' : 'Show &Vertical'; }
+            enabled: (context) => context.view && context.view.path ? true : false,
+            label: (context) => !context.view || context.view.get('direction') === 'vertical' ? 'Show &Horizontal' : 'Show &Vertical'
         });
         commandTable.set('view.toggle-mousewheel', {
-            enabled: (context) => { return context.view && context.view.path ? true : false; },
-            label: (context) => { return !context.view || context.view.get('mousewheel') === 'scroll' ? '&Mouse Wheel: Zoom' : '&Mouse Wheel: Scroll'; }
+            enabled: (context) => context.view && context.view.path ? true : false,
+            label: (context) => !context.view || context.view.get('mousewheel') === 'scroll' ? '&Mouse Wheel: Zoom' : '&Mouse Wheel: Scroll'
         });
         commandTable.set('view.reload', {
-            enabled: (context) => { return context.view && context.view.path ? true : false; }
+            enabled: (context) => context.view && context.view.path ? true : false
         });
         commandTable.set('view.reset-zoom', {
-            enabled: (context) => { return context.view && context.view.path ? true : false; }
+            enabled: (context) => context.view && context.view.path ? true : false
         });
         commandTable.set('view.zoom-in', {
-            enabled: (context) => { return context.view && context.view.path ? true : false; }
+            enabled: (context) => context.view && context.view.path ? true : false
         });
         commandTable.set('view.zoom-out', {
-            enabled: (context) => { return context.view && context.view.path ? true : false; }
+            enabled: (context) => context.view && context.view.path ? true : false
         });
         commandTable.set('view.show-properties', {
-            enabled: (context) => { return context.view && context.view.path ? true : false; }
+            enabled: (context) => context.view && context.view.path ? true : false
         });
 
         this._menu.build(menuTemplate, commandTable, this._views.views.map((view) => view.window));
@@ -688,8 +668,6 @@ class View {
         this._ready = false;
         this._path = null;
         this._properties = new Map();
-        this._location = url.format({ protocol: 'file:', slashes: true, pathname: path.join(__dirname, 'electron.html') });
-
         const size = electron.screen.getPrimaryDisplay().workAreaSize;
         const options = {
             show: false,
@@ -748,7 +726,7 @@ class View {
         this._window.once('ready-to-show', () => {
             this._window.show();
         });
-        this._window.loadURL(this._location);
+        this._loadURL();
     }
 
     get window() {
@@ -768,8 +746,19 @@ class View {
             this._window.webContents.on('did-finish-load', () => {
                 this._window.webContents.send('open', { path: path });
             });
-            this._window.loadURL(this._location);
+            this._loadURL();
         }
+    }
+
+    _loadURL() {
+        const pathname = path.join(__dirname, 'index.html');
+        let content = fs.readFileSync(pathname, 'utf-8');
+        content = content.replace(/<script\b[^<]*(?:(?!<\/script\s*>)<[^<]*)*<\/script\s*>/gi, '');
+        const data = 'data:text/html;charset=utf-8,' + encodeURIComponent(content);
+        const options = {
+            baseURLForDataURL: url.pathToFileURL(pathname).toString()
+        };
+        this._window.loadURL(data, options);
     }
 
     restore() {
@@ -1023,11 +1012,9 @@ class MenuService {
     _updateEnabled(context) {
         for (const entry of this._commandTable.entries()) {
             const menuItem = this._menu.getMenuItemById(entry[0]);
-            if (menuItem) {
-                const command = entry[1];
-                if (command.enabled) {
-                    menuItem.enabled = command.enabled(context);
-                }
+            const command = entry[1];
+            if (menuItem && command.enabled) {
+                menuItem.enabled = command.enabled(context);
             }
         }
     }

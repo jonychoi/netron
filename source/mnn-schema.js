@@ -559,6 +559,9 @@ $root.MNN.Interp = class Interp {
         $.heightOffset = reader.float32_(position, 20, 0);
         $.cubicCoeffA = reader.float32_(position, 22, -0.75);
         $.ctm = reader.int8_(position, 24, 0);
+        $.depthScale = reader.float32_(position, 26, 0);
+        $.outputDepth = reader.int32_(position, 28, 0);
+        $.depthOffset = reader.float32_(position, 30, 0);
         return $;
     }
 };
@@ -663,6 +666,7 @@ $root.MNN.BinaryOp = class BinaryOp {
         const $ = new $root.MNN.BinaryOp();
         $.opType = reader.int32_(position, 4, 0);
         $.T = reader.int32_(position, 6, 1);
+        $.activationType = reader.int32_(position, 8, 0);
         return $;
     }
 };
@@ -1379,6 +1383,7 @@ $root.MNN.ExtraInfo = class ExtraInfo {
         const $ = new $root.MNN.ExtraInfo();
         $.buffer = reader.typedArray(position, 4, Int8Array);
         $.name = reader.string_(position, 6, null);
+        $.version = reader.string_(position, 8, null);
         return $;
     }
 };
@@ -1587,6 +1592,7 @@ $root.MNN.OpType = {
     OneHot: 119,
     BroadcastTo: 120,
     Dilation2D: 121,
+    Interp3D: 122,
     Raster: 128,
     ConvertTensor: 129,
     ArgMin: 130,
@@ -1609,6 +1615,11 @@ $root.MNN.OpType = {
     EyeLike: 147,
     CumSum: 148,
     Det: 149,
+    CumProd: 150,
+    ScatterElements: 151,
+    GatherElements: 152,
+    Svd: 153,
+    Histogram: 154,
     Plugin: 256,
     Select: 257,
     ZerosLike: 258,
@@ -1621,7 +1632,8 @@ $root.MNN.OpType = {
     Conv2DBackPropFilter: 265,
     TrainableParam: 266,
     BatchNorm: 267,
-    ZeroGrad: 268,
+    ConvTranspose3D: 268,
+    ZeroGrad: 269,
     Extra: 512,
     ConvInt8: 513,
     Int8ToFloat: 514,
@@ -1717,6 +1729,7 @@ $root.MNN.LoopParam = class LoopParam {
         $.parallel = reader.bool_(position, 12, true);
         $.loopNumber = reader.int32_(position, 14, 0);
         $.commands = reader.tableArray(position, 16, $root.MNN.RegionCommand.decode);
+        $.initCommand = reader.table(position, 18, $root.MNN.RegionCommand.decode);
         return $;
     }
 };

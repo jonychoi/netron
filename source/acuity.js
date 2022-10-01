@@ -276,16 +276,8 @@ acuity.Argument = class {
         return this._quantization;
     }
 
-    set quantization(quantization) {
-        this._quantization = quantization;
-    }
-
     get initializer() {
         return this._initializer;
-    }
-
-    set initializer(initializer) {
-        this._initializer = initializer;
     }
 };
 
@@ -306,10 +298,6 @@ acuity.TensorType = class {
 
     get shape() {
         return this._shape;
-    }
-
-    set shape(shape) {
-        this._shape = shape;
     }
 
     toString() {
@@ -334,7 +322,7 @@ acuity.TensorShape = class {
         if (!Array.isArray(this._dimensions) || this._dimensions.length == 0 || (this._dimensions.length == 1 && this._dimensions[0] == 0)) {
             return '';
         }
-        return '[' + this._dimensions.map((dimension) => dimension.toString()).join(',') + ']';
+        return '[' + this._dimensions.map((dimension) => dimension ? dimension.toString() : '?').join(',') + ']';
     }
 };
 
@@ -344,20 +332,12 @@ acuity.Tensor = class {
         this._type = type;
     }
 
-    get kind() {
+    get category() {
         return 'Constant';
     }
 
     get type() {
         return this._type;
-    }
-
-    get state() {
-        return 'Tensor data not implemented.';
-    }
-
-    toString() {
-        return '';
     }
 };
 

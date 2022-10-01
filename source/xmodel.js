@@ -358,50 +358,15 @@ xmodel.Tensor = class {
 
     constructor(node) {
         this._type = new xmodel.TensorType(node.output_tensor);
-        this._kind = node.op_type;
+        this._category = node.op_type;
     }
 
-    get kind() {
-        return this._kind;
+    get category() {
+        return this._category;
     }
 
     get type() {
         return this._type;
-    }
-
-    get state() {
-        return this._context().state || null;
-    }
-
-    get value() {
-        const context = this._context();
-        if (context.state) {
-            return null;
-        }
-        context.limit = Number.MAX_SAFE_INTEGER;
-        return this._decode(context, 0);
-    }
-
-    toString() {
-        const context = this._context();
-        if (context.state) {
-            return '';
-        }
-        context.limit = 10000;
-        const value = this._decode(context, 0);
-        return JSON.stringify(value, null, 4);
-    }
-
-    _context() {
-        const context = {};
-        context.index = 0;
-        context.count = 0;
-        context.state = 'Tensor data not implemented.';
-        return context;
-    }
-
-    _decode(/* context, dimension */) {
-        return [];
     }
 };
 
@@ -421,7 +386,9 @@ xmodel.Utility = class {
             case 'float_vec': return { type: 'float32[]', value: value.value };
             case 'double': return { type: 'float64', value: value };
             case 'string': return { type: 'string', value: value };
+            case 'string_vec':  return { type: 'string[]', value: value.value };
             case 'bytes': return { type: 'byte[]', value: value.value };
+            case 'map_string_2_int32': return { type: 'map<string,int32>', value: value.value };
             default: throw new xmodel.Error("Unsupported attribute type '" + type + "'.");
         }
     }

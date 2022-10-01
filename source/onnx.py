@@ -1,181 +1,227 @@
+''' ONNX backend '''
 
-from curses import meta
+import collections
+import enum
+import json
+import os
 
+class ModelFactory: # pylint: disable=too-few-public-methods
+    ''' ONNX backend model factory '''
+    def open(self, model): # pylint: disable=missing-function-docstring
+        return _Model(model)
 
-def serialize(model):
-    print('Experimental')
-    # import onnx.shape_inference
-    # model = onnx.shape_inference.infer_shapes(model)
-    import collections
-    import onnx.onnx_pb
-    json_model = {}
-    json_model['signature'] = 'netron:onnx'
-    json_model['format'] = 'ONNX' + (' v' + str(model.ir_version) if model.ir_version else '')
-    if model.producer_name and len(model.producer_name) > 0:
-        json_model['producer'] = model.producer_name + (' v' + model.producer_version if model.producer_version else '')
-    if model.model_version and model.model_version != 0:
-        json_model['version'] = str(model.model_version)
-    if model.doc_string and len(model.doc_string):
-        json_model['description'] = str(model.doc_string)
-    json_metadata = []
-    metadata = collections.OrderedDict([ [entry.key, entry.value] for entry in model.metadata_props ])
-    converted_from = metadata.get('converted_from')
-    if converted_from:
-        json_metadata.append({ 'name': 'source', 'value': converted_from })
-    author = metadata.get('author')
-    if author:
-        json_metadata.append({ 'name': 'author', 'value': author })
-    company = metadata.get('company')
-    if company:
-        json_metadata.append({ 'name': 'company', 'value': company })
-    license = metadata.get('license')
-    license_url = metadata.get('license_url')
-    if license_url:
-        license = '<a href=\'' + license_url + '\'>' + (license if license else license_url) + '</a>'
-    if license:
-        json_metadata.append({ 'name': 'license', 'value': license })
-    if 'author' in metadata:
-        metadata.pop('author')
-    if 'company' in metadata:
-        metadata.pop('company')
-    if 'converted_from' in metadata:
-        metadata.pop('converted_from')
-    if 'license' in metadata:
-        metadata.pop('license')
-    if 'license_url' in metadata:
-        metadata.pop('license_url')
-    for name, value in metadata.items():
-        json_metadata.append({ 'name': name, 'value': value })
-    if len(json_metadata) > 0:
-        json_model['metadata'] = json_metadata
-    json_model['graphs'] = []
-    graph = model.graph
-    json_graph = {}
-    json_graph['nodes'] = []
-    json_model['graphs'].append(json_graph)
-    for node in graph.node:
-        json_node = {}
-        json_node_type = {}
-        json_node_type['name'] = node.op_type
-        if category(node.op_type):
-            json_node_type['category'] = category(node.op_type)
-        json_node['type'] = json_node_type
-        if node.name:
-            json_node['name'] = node.name
-        json_node['inputs'] = []
-        for input in node.input:
-            json_node['inputs'].append({
-                    'name': '',
-                    'arguments': [ { 'name': input } ]
-                })
-        json_node['outputs'] = []
-        for output in node.output:
-            json_node['outputs'].append({
-                    'name': '',
-                    'arguments': [ { 'name': output } ]
-                })
-        json_node['attributes'] = []
-        for attribute in node.attribute:
-            json_attribute = {}
-            json_attribute['name'] = attribute.name
-            if attribute.type == onnx.onnx_pb.AttributeProto.FLOAT:
-                json_attribute['type'] = 'float32'
-                json_attribute['value'] = attribute.f
-            elif attribute.type == onnx.onnx_pb.AttributeProto.INT:
-                json_attribute['type'] = 'int64'
-                json_attribute['value'] = attribute.i
-            elif attribute.type == onnx.onnx_pb.AttributeProto.STRING:
-                json_attribute['type'] = 'string'
-                json_attribute['value'] = attribute.s.decode('utf-8')
-            elif attribute.type == onnx.onnx_pb.AttributeProto.TENSOR:
-                json_attribute['type'] = 'tensor'
-                raise Exception('Unsupported tensor attribute type')
-            elif attribute.type == onnx.onnx_pb.AttributeProto.GRAPH:
-                json_attribute['graph'] = 'tensor'
-                raise Exception('Unsupported graph attribute type')
-            elif attribute.type == onnx.onnx_pb.AttributeProto.FLOATS:
-                json_attribute['type'] = 'float32[]'
-                json_attribute['value'] = [ item for item in attribute.floats ]
-            elif attribute.type == onnx.onnx_pb.AttributeProto.INTS:
-                json_attribute['type'] = 'int64[]'
-                json_attribute['value'] = [ item for item in attribute.ints ]
-            elif attribute.type == onnx.onnx_pb.AttributeProto.STRINGS:
-                json_attribute['type'] = 'string[]'
-                json_attribute['value'] = [ item for item in attribute.strings ]
-            elif attribute.type == onnx.onnx_pb.AttributeProto.TENSORS:
-                json_attribute['type'] = 'tensor[]'
-                raise Exception('Unsupported tensors attribute type')
-            elif attribute.type == onnx.onnx_pb.AttributeProto.GRAPHS:
-                json_attribute['type'] = 'graph[]'
-                raise Exception('Unsupported graphs attribute type')
-            else:
-                raise Exception('Unsupported attribute type')
-            json_node['attributes'].append(json_attribute)
-        json_graph['nodes'].append(json_node)
+class _Model: # pylint: disable=too-few-public-methods
+    def __init__(self, model):
+        ''' Serialize ONNX model to JSON message '''
+        # import onnx.shape_inference
+        # model = onnx.shape_inference.infer_shapes(model)
+        self.value = model
+        self.metadata = _Metadata()
+        self.graph = _Graph(model.graph, self.metadata)
 
-    import json
-    text = json.dumps(json_model, ensure_ascii=False, indent=2)
-    return text.encode('utf-8')
+    def to_json(self): # pylint: disable=missing-function-docstring
+        ''' Serialize model to JSON message '''
+        model = self.value
+        json_model = {}
+        json_model['signature'] = 'netron:onnx'
+        json_model['format'] = 'ONNX' + (' v' + str(model.ir_version) if model.ir_version else '')
+        if model.producer_name and len(model.producer_name) > 0:
+            producer_version = ' v' + model.producer_version if model.producer_version else ''
+            json_model['producer'] = model.producer_name + producer_version
+        if model.model_version and model.model_version != 0:
+            json_model['version'] = str(model.model_version)
+        if model.doc_string and len(model.doc_string):
+            json_model['description'] = str(model.doc_string)
+        json_metadata = self._metadata_props(model.metadata_props)
+        if len(json_metadata) > 0:
+            json_model['metadata'] = json_metadata
+        json_model['graphs'] = []
+        json_model['graphs'].append(self.graph.to_json())
+        return json_model
 
-categories = {
-    'Constant': 'Constant',
-    'Conv': 'Layer',
-    'ConvInteger': 'Layer',
-    'ConvTranspose': 'Layer',
-    'FC': 'Layer',
-    'RNN': 'Layer',
-    'LSTM': 'Layer',
-    'GRU': 'Layer',
-    'Gemm': 'Layer',
-    'FusedConv': 'Layer',
-    'Dropout': 'Dropout',
-    'Elu': 'Activation',
-    'HardSigmoid': 'Activation',
-    'LeakyRelu': 'Activation',
-    'PRelu': 'Activation',
-    'ThresholdedRelu': 'Activation',
-    'Relu': 'Activation',
-    'Selu': 'Activation',
-    'Sigmoid': 'Activation',
-    'Tanh': 'Activation',
-    'LogSoftmax': 'Activation',
-    'Softmax': 'Activation',
-    'Softplus': 'Activation',
-    'Softsign': 'Activation',
-    'Clip': 'Activation',
-    'BatchNormalization': 'Normalization',
-    'InstanceNormalization': 'Normalization',
-    'LpNormalization': 'Normalization',
-    'LRN': 'Normalization',
-    'Flatten': 'Shape',
-    'Reshape': 'Shape',
-    'Tile': 'Shape',
-    'Xor': 'Logic',
-    'Not': 'Logic',
-    'Or': 'Logic',
-    'Less': 'Logic',
-    'And': 'Logic',
-    'Greater': 'Logic',
-    'Equal': 'Logic',
-    'AveragePool': 'Pool',
-    'GlobalAveragePool': 'Pool',
-    'GlobalLpPool': 'Pool',
-    'GlobalMaxPool': 'Pool',
-    'LpPool': 'Pool',
-    'MaxPool': 'Pool',
-    'MaxRoiPool': 'Pool',
-    'Concat': 'Tensor',
-    'Slice': 'Tensor',
-    'Split': 'Tensor',
-    'Pad': 'Tensor',
-    'ImageScaler': 'Data',
-    'Crop': 'Data',
-    'Upsample': 'Data',
-    'Transpose': 'Transform',
-    'Gather': 'Transform',
-    'Unsqueeze': 'Transform',
-    'Squeeze': 'Transform',
-}
+    def _metadata_props(self, metadata_props): # pylint: disable=missing-function-docstring
+        json_metadata = []
+        metadata_props = [ [ entry.key, entry.value ] for entry in metadata_props ]
+        metadata = collections.OrderedDict(metadata_props)
+        value = metadata.get('converted_from')
+        if value:
+            json_metadata.append({ 'name': 'source', 'value': value })
+        value = metadata.get('author')
+        if value:
+            json_metadata.append({ 'name': 'author', 'value': value })
+        value = metadata.get('company')
+        if value:
+            json_metadata.append({ 'name': 'company', 'value': value })
+        value = metadata.get('license')
+        license_url = metadata.get('license_url')
+        if license_url:
+            value = '<a href=\'' + license_url + '\'>' + (value if value else license_url) + '</a>'
+        if value:
+            json_metadata.append({ 'name': 'license', 'value': value })
+        if 'author' in metadata:
+            metadata.pop('author')
+        if 'company' in metadata:
+            metadata.pop('company')
+        if 'converted_from' in metadata:
+            metadata.pop('converted_from')
+        if 'license' in metadata:
+            metadata.pop('license')
+        if 'license_url' in metadata:
+            metadata.pop('license_url')
+        for name, value in metadata.items():
+            json_metadata.append({ 'name': name, 'value': value })
+        return json_metadata
 
-def category(type):
-    return categories[type] if type in categories else ''
+class _Graph:
+    def __init__(self, graph, metadata):
+        self.metadata = metadata
+        self.value = graph
+        self.arguments_index = {}
+        self.arguments = []
+
+    def _tensor(self, tensor): # pylint: disable=unused-argument
+        return {}
+
+    def argument(self, name, tensor_type=None, initializer=None): # pylint: disable=missing-function-docstring
+        if not name in self.arguments_index:
+            argument = _Argument(name, tensor_type, initializer)
+            self.arguments_index[name] = len(self.arguments)
+            self.arguments.append(argument)
+        index = self.arguments_index[name]
+        # argument.set_initializer(initializer)
+        return index
+
+    def attribute(self, _, op_type): # pylint: disable=too-many-branches disable=missing-function-docstring
+        if _.type == _AttributeType.UNDEFINED:
+            attribute_type = None
+            value = None
+        elif _.type == _AttributeType.FLOAT:
+            attribute_type = 'float32'
+            value = _.f
+        elif _.type == _AttributeType.INT:
+            attribute_type = 'int64'
+            value = _.i
+        elif _.type == _AttributeType.STRING:
+            attribute_type = 'string'
+            value = _.s.decode('latin1' if op_type == 'Int8GivenTensorFill' else 'utf-8')
+        elif _.type == _AttributeType.TENSOR:
+            attribute_type = 'tensor'
+            value = self._tensor(_.t)
+        elif _.type == _AttributeType.GRAPH:
+            attribute_type = 'tensor'
+            raise Exception('Unsupported graph attribute type')
+        elif _.type == _AttributeType.FLOATS:
+            attribute_type = 'float32[]'
+            value = list(_.floats)
+        elif _.type == _AttributeType.INTS:
+            attribute_type = 'int64[]'
+            value = list(_.ints)
+        elif _.type == _AttributeType.STRINGS:
+            attribute_type = 'string[]'
+            value = [ item.decode('utf-8') for item in _.strings ]
+        elif _.type == _AttributeType.TENSORS:
+            attribute_type = 'tensor[]'
+            raise Exception('Unsupported tensors attribute type')
+        elif _.type == _AttributeType.GRAPHS:
+            attribute_type = 'graph[]'
+            raise Exception('Unsupported graphs attribute type')
+        elif _.type == _AttributeType.SPARSE_TENSOR:
+            attribute_type = 'tensor'
+            value = self._tensor(_.sparse_tensor)
+        else:
+            raise Exception("Unsupported attribute type '" + str(_.type) + "'.")
+        json_attribute = {}
+        json_attribute['name'] = _.name
+        if attribute_type:
+            json_attribute['type'] = attribute_type
+        json_attribute['value'] = value
+        return json_attribute
+
+    def to_json(self): # pylint: disable=missing-function-docstring
+        graph = self.value
+        json_graph = {
+            'nodes': [],
+            'inputs': [],
+            'outputs': [],
+            'arguments': []
+        }
+        for value_info in graph.value_info:
+            self.argument(value_info.name)
+        for initializer in graph.initializer:
+            self.argument(initializer.name, None, initializer)
+        for node in graph.node:
+            op_type = node.op_type
+            json_node = {}
+            json_node_type = {}
+            json_node_type['name'] = op_type
+            type_metadata = self.metadata.type(op_type)
+            if type and 'category' in type_metadata:
+                json_node_type['category'] = type_metadata['category']
+            json_node['type'] = json_node_type
+            if node.name:
+                json_node['name'] = node.name
+            json_node['inputs'] = []
+            for value in node.input:
+                json_node['inputs'].append({
+                        'name': 'X',
+                        'arguments': [ self.argument(value) ]
+                    })
+            json_node['outputs'] = []
+            for value in node.output:
+                json_node['outputs'].append({
+                        'name': 'X',
+                        'arguments': [ self.argument(value) ]
+                    })
+            json_node['attributes'] = []
+            for _ in node.attribute:
+                json_attribute = self.attribute(_, op_type)
+                json_node['attributes'].append(json_attribute)
+            json_graph['nodes'].append(json_node)
+        for _ in self.arguments:
+            json_graph['arguments'].append(_.to_json())
+        return json_graph
+
+class _Argument: # pylint: disable=too-few-public-methods
+    def __init__(self, name, tensor_type=None, initializer=None):
+        self.name = name
+        self.type = tensor_type
+        self.initializer = initializer
+
+    def to_json(self): # pylint: disable=missing-function-docstring
+        target = {}
+        target['name'] = self.name
+        if self.initializer:
+            target['initializer'] = {}
+        return target
+
+class _Metadata: # pylint: disable=too-few-public-methods
+    metadata = {}
+
+    def __init__(self):
+        metadata_file = os.path.join(os.path.dirname(__file__), 'onnx-metadata.json')
+        with open(metadata_file, 'r', encoding='utf-8') as file:
+            for item in json.load(file):
+                name = item['name']
+                self.metadata[name] = item
+
+    def type(self, name): # pylint: disable=missing-function-docstring
+        if name in self.metadata:
+            return self.metadata[name]
+        return {}
+
+class _AttributeType(enum.IntEnum):
+    UNDEFINED = 0
+    FLOAT = 1
+    INT = 2
+    STRING = 3
+    TENSOR = 4
+    GRAPH = 5
+    FLOATS = 6
+    INTS = 7
+    STRINGS = 8
+    TENSORS = 9
+    GRAPHS = 10
+    SPARSE_TENSOR = 11
+    SPARSE_TENSORS = 12
+    TYPE_PROTO = 13
+    TYPE_PROTOS = 14

@@ -15,7 +15,7 @@ dagre.layout = (graph, options) => {
         if (options.time) {
             /* eslint-disable */
             console.log(name + ': ' + duration + 'ms');
-            /* eslint-enable */
+        /* eslint-enable */
         }
         return result;
     };
@@ -284,16 +284,13 @@ dagre.layout = (graph, options) => {
                 }
                 return t;
             };
-            // Initializes ranks for the input graph using the longest path algorithm. This
-            // algorithm scales well and is fast in practice, it yields rather poor
-            // solutions. Nodes are pushed to the lowest layer possible, leaving the bottom
-            // ranks wide and leaving edges longer than necessary. However, due to its
-            // speed, this algorithm is good for getting an initial ranking that can be fed
-            // into other algorithms.
+            // Initializes ranks for the input graph using the longest path algorithm.
+            // This algorithm scales well and is fast in practice, it yields rather poor solutions.
+            // Nodes are pushed to the lowest layer possible, leaving the bottom ranks wide and leaving edges longer than necessary.
+            // However, due to its speed, this algorithm is good for getting an initial ranking that can be fed into other algorithms.
             //
-            // This algorithm does not normalize layers because it will be used by other
-            // algorithms in most cases. If using this algorithm directly, be sure to
-            // run normalize at the end.
+            // This algorithm does not normalize layers because it will be used by other algorithms in most cases.
+            // If using this algorithm directly, be sure to run normalize at the end.
             //
             // Pre-conditions:
             //    1. Input graph is a DAG.
@@ -303,25 +300,33 @@ dagre.layout = (graph, options) => {
             //    1. Each node will be assign an (unnormalized) 'rank' property.
             const longestPath = (g) => {
                 const visited = new Set();
-                const dfs = (v) => {
-                    const node = g.node(v);
-                    if (visited.has(v)) {
-                        return node.label.rank;
+                const stack = [ Array.from(g.nodes.values()).filter((node) => node.in.length === 0).reverse() ];
+                while (stack.length > 0) {
+                    const current = stack[stack.length - 1];
+                    if (Array.isArray(current)) {
+                        const node = current.pop();
+                        if (current.length === 0) {
+                            stack.pop();
+                        }
+                        if (!visited.has(node)) {
+                            visited.add(node);
+                            const children = node.out.map((e) => e.wNode);
+                            if (children.length > 0) {
+                                stack.push(node);
+                                stack.push(children.reverse());
+                            }
+                            else {
+                                node.label.rank = 0;
+                            }
+                        }
                     }
-                    visited.add(v);
-                    let rank = Number.MAX_SAFE_INTEGER;
-                    for (const e of node.out) {
-                        rank = Math.min(rank, dfs(e.w) - e.label.minlen);
-                    }
-                    if (rank === Number.MAX_SAFE_INTEGER) {
-                        rank = 0;
-                    }
-                    node.label.rank = rank;
-                    return rank;
-                };
-                for (const node of g.nodes.values()) {
-                    if (node.in.length === 0) {
-                        dfs(node.v);
+                    else {
+                        stack.pop();
+                        let rank = Number.MAX_SAFE_INTEGER;
+                        for (const e of current.out) {
+                            rank = Math.min(rank, e.wNode.label.rank - e.label.minlen);
+                        }
+                        current.label.rank = rank;
                     }
                 }
             };
@@ -1295,7 +1300,10 @@ dagre.layout = (graph, options) => {
                 }
                 const graph = new dagre.Graph({ compound: true });
                 graph.options = { root: root };
-                graph.setDefaultNodeLabel((v) => { const node = g.node(v); return node ? node.label : undefined; });
+                graph.setDefaultNodeLabel((v) => {
+                    const node = g.node(v);
+                    return node ? node.label : undefined;
+                });
                 const length = nodes.length;
                 let i = 0;
                 while (i < length) {
@@ -1968,31 +1976,31 @@ dagre.layout = (graph, options) => {
             }
         };
 
-        time('    makeSpaceForEdgeLabels',        () => { makeSpaceForEdgeLabels(g); });
-        time('    removeSelfEdges',               () => { removeSelfEdges(g); });
-        time('    acyclic_run',                   () => { acyclic_run(g); });
-        time('    nestingGraph_run',              () => { nestingGraph_run(g); });
-        time('    rank',                          () => { rank(asNonCompoundGraph(g)); });
-        time('    injectEdgeLabelProxies',        () => { injectEdgeLabelProxies(g); });
-        time('    removeEmptyRanks',              () => { removeEmptyRanks(g); });
-        time('    nestingGraph_cleanup',          () => { nestingGraph_cleanup(g); });
-        time('    assignRankMinMax',              () => { assignRankMinMax(g); });
-        time('    removeEdgeLabelProxies',        () => { removeEdgeLabelProxies(g); });
-        time('    normalize',                     () => { normalize(g); });
-        time('    parentDummyChains',             () => { parentDummyChains(g); });
-        time('    addBorderSegments',             () => { addBorderSegments(g); });
-        time('    order',                         () => { order(g); });
-        time('    insertSelfEdges',               () => { insertSelfEdges(g); });
-        time('    coordinateSystem_adjust',       () => { coordinateSystem_adjust(g); });
-        time('    position',                      () => { position(g); });
-        time('    positionSelfEdges',             () => { positionSelfEdges(g); });
-        time('    removeBorderNodes',             () => { removeBorderNodes(g); });
-        time('    denormalize',                   () => { denormalize(g); });
-        time('    fixupEdgeLabelCoords',          () => { fixupEdgeLabelCoords(g); });
-        time('    coordinateSystem_undo',         () => { coordinateSystem_undo(g); });
-        time('    translateGraph',                () => { translateGraph(g); });
-        time('    assignNodeIntersects',          () => { assignNodeIntersects(g); });
-        time('    acyclic_undo',                  () => { acyclic_undo(g); });
+        time('    makeSpaceForEdgeLabels',        () => makeSpaceForEdgeLabels(g));
+        time('    removeSelfEdges',               () => removeSelfEdges(g));
+        time('    acyclic_run',                   () => acyclic_run(g));
+        time('    nestingGraph_run',              () => nestingGraph_run(g));
+        time('    rank',                          () => rank(asNonCompoundGraph(g)));
+        time('    injectEdgeLabelProxies',        () => injectEdgeLabelProxies(g));
+        time('    removeEmptyRanks',              () => removeEmptyRanks(g));
+        time('    nestingGraph_cleanup',          () => nestingGraph_cleanup(g));
+        time('    assignRankMinMax',              () => assignRankMinMax(g));
+        time('    removeEdgeLabelProxies',        () => removeEdgeLabelProxies(g));
+        time('    normalize',                     () => normalize(g));
+        time('    parentDummyChains',             () => parentDummyChains(g));
+        time('    addBorderSegments',             () => addBorderSegments(g));
+        time('    order',                         () => order(g));
+        time('    insertSelfEdges',               () => insertSelfEdges(g));
+        time('    coordinateSystem_adjust',       () => coordinateSystem_adjust(g));
+        time('    position',                      () => position(g));
+        time('    positionSelfEdges',             () => positionSelfEdges(g));
+        time('    removeBorderNodes',             () => removeBorderNodes(g));
+        time('    denormalize',                   () => denormalize(g));
+        time('    fixupEdgeLabelCoords',          () => fixupEdgeLabelCoords(g));
+        time('    coordinateSystem_undo',         () => coordinateSystem_undo(g));
+        time('    translateGraph',                () => translateGraph(g));
+        time('    assignNodeIntersects',          () => assignNodeIntersects(g));
+        time('    acyclic_undo',                  () => acyclic_undo(g));
     };
 
     // Copies final layout information from the layout graph back to the input graph.
@@ -2026,9 +2034,9 @@ dagre.layout = (graph, options) => {
 
     time('layout', () => {
         const layoutGraph =
-        time('  buildLayoutGraph',  () => { return buildLayoutGraph(graph); });
-        time('  runLayout',         () => { runLayout(layoutGraph, time); });
-        time('  updateSourceGraph', () => { updateSourceGraph(graph, layoutGraph); });
+        time('  buildLayoutGraph',  () => buildLayoutGraph(graph));
+        time('  runLayout',         () => runLayout(layoutGraph, time));
+        time('  updateSourceGraph', () => updateSourceGraph(graph, layoutGraph));
     });
 };
 

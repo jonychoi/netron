@@ -76,6 +76,10 @@
     "category": "Activation"
   },
   {
+    "name": "VSI_NN_OP_MISH",
+    "category": "Activation"
+  },
+  {
     "name": "VSI_NN_OP_PERMUTE",
     "category": "Shape"
   },
@@ -276,5 +280,17 @@
   {
     "name": "BatchNormalizationLayer",
     "category": "Normalization"
+  },
+  {
+    "name": "Sigmoid",
+    "category": "Activation"
+  },
+  {
+    "name": "exSwish",
+    "category": "Activation"
+  },
+  {
+    "name": "Slice",
+    "category": "Tensor"
   }
 ]

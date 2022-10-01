@@ -543,6 +543,25 @@ DataView.prototype.setInt64 = DataView.prototype.setInt64 || function(byteOffset
     }
 };
 
+DataView.prototype.getIntBits = DataView.prototype.getUintBits || function(offset, bits) {
+    offset = offset * bits;
+    const available = (this.byteLength << 3) - offset;
+    if (bits > available) {
+        throw new RangeError("Invalid bit size '" + bits + "'.");
+    }
+    let value = 0;
+    let index = 0;
+    while (index < bits) {
+        const remainder = offset & 7;
+        const size = Math.min(bits - index, 8 - remainder);
+        value <<= size;
+        value |= (this.getUint8(offset >> 3) >> (8 - size - remainder)) & ~(0xff << size);
+        offset += size;
+        index += size;
+    }
+    return (value < (2 << (bits - 1)) ? value : (2 << bits));
+};
+
 DataView.prototype.getUint64 = DataView.prototype.getUint64 || function(byteOffset, littleEndian) {
     return littleEndian ?
         new base.Uint64(this.getUint32(byteOffset, true), this.getUint32(byteOffset + 4, true)) :
@@ -551,13 +570,32 @@ DataView.prototype.getUint64 = DataView.prototype.getUint64 || function(byteOffs
 
 DataView.prototype.setUint64 = DataView.prototype.setUint64 || function(byteOffset, value, littleEndian) {
     if (littleEndian) {
-        this.setUInt32(byteOffset, value.low, true);
-        this.setUInt32(byteOffset + 4, value.high, true);
+        this.setUint32(byteOffset, value.low, true);
+        this.setUint32(byteOffset + 4, value.high, true);
     }
     else {
-        this.setUInt32(byteOffset + 4, value.low, false);
-        this.setUInt32(byteOffset, value.high, false);
+        this.setUint32(byteOffset + 4, value.low, false);
+        this.setUint32(byteOffset, value.high, false);
     }
+};
+
+DataView.prototype.getUintBits = DataView.prototype.getUintBits || function(offset, bits) {
+    offset = offset * bits;
+    const available = (this.byteLength << 3) - offset;
+    if (bits > available) {
+        throw new RangeError("Invalid bit size '" + bits + "'.");
+    }
+    let value = 0;
+    let index = 0;
+    while (index < bits) {
+        const remainder = offset & 7;
+        const size = Math.min(bits - index, 8 - remainder);
+        value <<= size;
+        value |= (this.getUint8(offset >> 3) >> (8 - size - remainder)) & ~(0xff << size);
+        offset += size;
+        index += size;
+    }
+    return value;
 };
 
 DataView.prototype.getComplex64 = DataView.prototype.getComplex64 || function(byteOffset, littleEndian) {
@@ -592,25 +630,6 @@ DataView.prototype.setComplex128 = DataView.prototype.setComplex128 || function(
         this.setFloat64(byteOffset + 8, value.real, littleEndian);
         this.setFloat64(byteOffset, value.imaginary, littleEndian);
     }
-};
-
-DataView.prototype.getBits = DataView.prototype.getBits || function(offset, bits /*, signed */) {
-    offset = offset * bits;
-    const available = (this.byteLength << 3) - offset;
-    if (bits > available) {
-        throw new RangeError();
-    }
-    let value = 0;
-    let index = 0;
-    while (index < bits) {
-        const remainder = offset & 7;
-        const size = Math.min(bits - index, 8 - remainder);
-        value <<= size;
-        value |= (this.getUint8(offset >> 3) >> (8 - size - remainder)) & ~(0xff << size);
-        offset += size;
-        index += size;
-    }
-    return value;
 };
 
 base.BinaryReader = class {
@@ -648,6 +667,17 @@ base.BinaryReader = class {
         if (this._position % mod != 0) {
             this.skip(mod - (this._position % mod));
         }
+    }
+
+    peek(length) {
+        if (this._position === 0 && length === undefined) {
+            return this._buffer;
+        }
+        const position = this._position;
+        this.skip(length !== undefined ? length : this._length - this._position);
+        const end = this._position;
+        this._position = position;
+        return this._buffer.slice(position, end);
     }
 
     read(length) {
@@ -705,7 +735,16 @@ base.BinaryReader = class {
     uint64() {
         const position = this._position;
         this.skip(8);
-        return this._view.getUint64(position, true).toNumber();
+        const low = this._view.getUint32(position, true);
+        const high = this._view.getUint32(position + 4, true);
+        if (high === 0) {
+            return low;
+        }
+        const value = (high * 4294967296) + low;
+        if (Number.isSafeInteger(value)) {
+            return value;
+        }
+        throw new Error("Unsigned 64-bit value exceeds safe integer.");
     }
 
     float32() {
@@ -736,55 +775,23 @@ base.BinaryReader = class {
 
 base.Metadata = class {
 
-    static open(context, name) {
-        base.Metadata._metadata = base.Metadata._metadata || new Map();
-        if (base.Metadata._metadata.has(name)) {
-            return Promise.resolve(base.Metadata._metadata.get(name));
-        }
-        return context.request(name, 'utf-8', null).then((data) => {
-            const library = new base.Metadata(data);
-            base.Metadata._metadata.set(name, library);
-            return library;
-        }).catch(() => {
-            const library = new base.Metadata(null);
-            base.Metadata._metadata.set(name, library);
-            return library;
-        });
-    }
-
-    constructor(data) {
-        this._types = new Map();
-        this._attributes = new Map();
-        if (data) {
-            const metadata = JSON.parse(data);
-            for (const entry of metadata) {
-                this._types.set(entry.name, entry);
-                if (entry.identifier !== undefined) {
-                    this._types.set(entry.identifier, entry);
-                }
-            }
-        }
-    }
-
-    type(name) {
-        if (!this._types.has(name)) {
-            this._types.set(name, { name: name.toString() });
-        }
-        return this._types.get(name);
-    }
-
-    attribute(type, name) {
-        const key = type + ':' + name;
-        if (!this._attributes.has(key)) {
-            this._attributes.set(key, null);
-            const metadata = this.type(type);
-            if (metadata && Array.isArray(metadata.attributes)) {
-                for (const attribute of metadata.attributes) {
-                    this._attributes.set(type + ':' + attribute.name, attribute);
-                }
-            }
-        }
-        return this._attributes.get(key);
+    get extensions() {
+        return [
+            'onnx', 'tflite', 'pb', 'pt', 'pth', 'h5', 'pbtxt', 'prototxt', 'caffemodel', 'mlmodel', 'mlpackage',
+            'model', 'json', 'xml', 'cfg',
+            'ort',
+            'dnn', 'cmf',
+            'hd5', 'hdf5', 'keras',
+            'tfl', 'circle', 'lite',
+            'mar',  'meta', 'nn',
+            'param', 'params',
+            'paddle', 'pdiparams', 'pdmodel', 'pdopt', 'pdparams', 'nb',
+            'pkl', 'joblib',
+            'ptl', 't7',
+            'dlc', 'uff', 'armnn',
+            'mnn', 'ms', 'ncnn', 'om', 'tm', 'mge', 'tmfile', 'tnnproto', 'xmodel', 'kmodel', 'rknn',
+            'tar', 'zip'
+        ];
     }
 };
 
@@ -797,6 +804,8 @@ if (typeof window !== 'undefined' && typeof window.Long != 'undefined') {
 if (typeof module !== 'undefined' && typeof module.exports === 'object') {
     module.exports.Int64 = base.Int64;
     module.exports.Uint64 = base.Uint64;
+    module.exports.Complex64 = base.Complex;
+    module.exports.Complex128 = base.Complex;
     module.exports.BinaryReader = base.BinaryReader;
     module.exports.Metadata = base.Metadata;
 }

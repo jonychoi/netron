@@ -58,41 +58,50 @@ host.ElectronHost = class {
             this._openPath(data.path);
         });
         return new Promise((resolve /*, reject */) => {
-            const telemetry = () => {
-                if (this._environment.package) {
-                    this._telemetry = new host.Telemetry('UA-54146-13', this._getConfiguration('userId'), navigator.userAgent, this.type, this.version);
-                }
-                resolve();
-            };
-            const consent = () => {
-                this._message('This app uses cookies to report errors and anonymous usage information.', 'Accept', () => {
-                    this._setConfiguration('consent', Date.now());
-                    telemetry();
-                });
-            };
-            const time = this._getConfiguration('consent');
-            if (time && (Date.now() - time) < 30 * 24 * 60 * 60 * 1000) {
-                telemetry();
+            const age = (new Date() - new Date(this._environment.date)) / ( 24 * 60 * 60 * 1000);
+            if (age > 180) {
+                this._message('Please update to the newest version.', 'Download', () => {
+                    const link = this.document.getElementById('logo-github').href;
+                    this.openURL(link);
+                }, true);
             }
             else {
-                this._request('https://ipinfo.io/json', { 'Content-Type': 'application/json' }, 2000).then((text) => {
-                    try {
-                        const json = JSON.parse(text);
-                        const countries = ['AT', 'BE', 'BG', 'HR', 'CZ', 'CY', 'DK', 'EE', 'FI', 'FR', 'DE', 'EL', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'NO', 'PL', 'PT', 'SK', 'ES', 'SE', 'GB', 'UK', 'GR', 'EU', 'RO'];
-                        if (json && json.country && !countries.indexOf(json.country) !== -1) {
-                            this._setConfiguration('consent', Date.now());
-                            telemetry();
+                const telemetry = () => {
+                    if (this._environment.packaged) {
+                        this._telemetry = new host.Telemetry('UA-54146-13', this._getConfiguration('userId'), navigator.userAgent, this.type, this.version);
+                    }
+                    resolve();
+                };
+                const consent = () => {
+                    this._message('This app uses cookies to report errors and anonymous usage information.', 'Accept', () => {
+                        this._setConfiguration('consent', Date.now());
+                        telemetry();
+                    });
+                };
+                const time = this._getConfiguration('consent');
+                if (time && (Date.now() - time) < 30 * 24 * 60 * 60 * 1000) {
+                    telemetry();
+                }
+                else {
+                    this._request('https://ipinfo.io/json', { 'Content-Type': 'application/json' }, 2000).then((text) => {
+                        try {
+                            const json = JSON.parse(text);
+                            const countries = ['AT', 'BE', 'BG', 'HR', 'CZ', 'CY', 'DK', 'EE', 'FI', 'FR', 'DE', 'EL', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'NO', 'PL', 'PT', 'SK', 'ES', 'SE', 'GB', 'UK', 'GR', 'EU', 'RO'];
+                            if (json && json.country && !countries.indexOf(json.country) !== -1) {
+                                this._setConfiguration('consent', Date.now());
+                                telemetry();
+                            }
+                            else {
+                                consent();
+                            }
                         }
-                        else {
+                        catch (err) {
                             consent();
                         }
-                    }
-                    catch (err) {
+                    }).catch(() => {
                         consent();
-                    }
-                }).catch(() => {
-                    consent();
-                });
+                    });
+                }
             }
         });
     }
@@ -141,10 +150,13 @@ host.ElectronHost = class {
         electron.ipcRenderer.on('find', () => {
             this._view.find();
         });
-        this.document.getElementById('menu-button').addEventListener('click', () => {
-            this._view.showModelProperties();
-        });
-
+        const menuButton = this.document.getElementById('menu-button');
+        if (menuButton) {
+            menuButton.setAttribute('title', 'Model Properties');
+            menuButton.addEventListener('click', () => {
+                this._view.showModelProperties();
+            });
+        }
         const openFileButton = this.document.getElementById('open-file-button');
         if (openFileButton) {
             openFileButton.style.opacity = 1;
@@ -155,6 +167,7 @@ host.ElectronHost = class {
         const githubButton = this.document.getElementById('github-button');
         const githubLink = this.document.getElementById('logo-github');
         if (githubButton && githubLink) {
+            githubButton.innerText = 'Download';
             githubButton.style.opacity = 1;
             githubButton.addEventListener('click', () => {
                 this.openURL(githubLink.href);
@@ -294,7 +307,7 @@ host.ElectronHost = class {
         if (this._telemetry && error && error.telemetry !== false) {
             try {
                 const name = error && error.name ? error.name + ': ' : '';
-                const message = error && error.message ? error.message : '(null)';
+                const message = error && error.message ? error.message : JSON.stringify(error);
                 const description = [ name + message ];
                 if (error.stack) {
                     const format = (file, line, column) => {
@@ -308,6 +321,10 @@ host.ElectronHost = class {
                         const match = error.stack.match(/\n {4}at (.*):(\d*):(\d*)/);
                         if (match) {
                             description.push('(' + format(match[1], match[2], match[3]) + ')');
+                        }
+                        else {
+                            const match = error.stack.match(/.*\n\s*(.*)\s*/);
+                            description.push(match ? match[1] : error.stack.split('\n').shift());
                         }
                     }
                 }
@@ -458,18 +475,20 @@ host.ElectronHost = class {
         electron.ipcRenderer.send('update', data);
     }
 
-    _message(message, button, callback) {
+    _message(message, action, callback, modal) {
         const messageText = this.document.getElementById('message');
         if (messageText) {
             messageText.innerText = message;
         }
         const messageButton = this.document.getElementById('message-button');
         if (messageButton) {
-            if (button && callback) {
+            if (action && callback) {
                 messageButton.style.removeProperty('display');
-                messageButton.innerText = button;
+                messageButton.innerText = action;
                 messageButton.onclick = () => {
-                    messageButton.onclick = null;
+                    if (!modal) {
+                        messageButton.onclick = null;
+                    }
                     callback();
                 };
             }

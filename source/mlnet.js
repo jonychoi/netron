@@ -666,19 +666,6 @@ mlnet.BinaryReader = class extends base.BinaryReader {
         }
         return (hi << 32) | low;
     }
-
-    uint64() {
-        const low = this.uint32();
-        const hi = this.uint32();
-        if (hi == 0) {
-            return low;
-        }
-        if (hi > 1048576) {
-            throw new mlnet.Error('Value not in 48-bit range.');
-        }
-        return (hi * 4294967296) + low;
-    }
-
     float32s(count) {
         const values = [];
         for (let i = 0; i < count; i++) {
@@ -880,7 +867,7 @@ mlnet.ColumnConcatenatingTransformer = class {
             }
 
             if (n > 1) {
-                throw new mlnet.Error('');
+                throw new mlnet.Error("Unsupported ColumnConcatenatingTransformer name count '" + n.toString() + "'.");
             }
 
             this.outputs = [];
@@ -2057,9 +2044,17 @@ mlnet.FastTreeTweedieModelParameters = class extends mlnet.TreeEnsembleModelPara
         super(context);
     }
 
-    get VerNumFeaturesSerialized() { return 0x00010001; }
-    get VerDefaultValueSerialized() { return 0x00010002; }
-    get VerCategoricalSplitSerialized() { return 0x00010003; }
+    get VerNumFeaturesSerialized() {
+        return 0x00010001;
+    }
+
+    get VerDefaultValueSerialized() {
+        return 0x00010002;
+    }
+
+    get VerCategoricalSplitSerialized() {
+        return 0x00010003;
+    }
 };
 
 mlnet.FastTreeRankingModelParameters = class extends mlnet.TreeEnsembleModelParametersBasedOnRegressionTree {
@@ -2068,9 +2063,17 @@ mlnet.FastTreeRankingModelParameters = class extends mlnet.TreeEnsembleModelPara
         super(context);
     }
 
-    get VerNumFeaturesSerialized() { return 0x00010002; }
-    get VerDefaultValueSerialized() { return 0x00010004; }
-    get VerCategoricalSplitSerialized() { return 0x00010005; }
+    get VerNumFeaturesSerialized() {
+        return 0x00010002;
+    }
+
+    get VerDefaultValueSerialized() {
+        return 0x00010004;
+    }
+
+    get VerCategoricalSplitSerialized() {
+        return 0x00010005;
+    }
 };
 
 mlnet.FastTreeBinaryModelParameters = class extends mlnet.TreeEnsembleModelParametersBasedOnRegressionTree {
@@ -2079,9 +2082,17 @@ mlnet.FastTreeBinaryModelParameters = class extends mlnet.TreeEnsembleModelParam
         super(context);
     }
 
-    get VerNumFeaturesSerialized() { return 0x00010002; }
-    get VerDefaultValueSerialized() { return 0x00010004; }
-    get VerCategoricalSplitSerialized() { return 0x00010005; }
+    get VerNumFeaturesSerialized() {
+        return 0x00010002;
+    }
+
+    get VerDefaultValueSerialized() {
+        return 0x00010004;
+    }
+
+    get VerCategoricalSplitSerialized() {
+        return 0x00010005;
+    }
 };
 
 mlnet.FastTreeRegressionModelParameters = class extends mlnet.TreeEnsembleModelParametersBasedOnRegressionTree {
@@ -2090,9 +2101,17 @@ mlnet.FastTreeRegressionModelParameters = class extends mlnet.TreeEnsembleModelP
         super(context);
     }
 
-    get VerNumFeaturesSerialized() { return 0x00010002; }
-    get VerDefaultValueSerialized() { return 0x00010004; }
-    get VerCategoricalSplitSerialized() { return 0x00010005; }
+    get VerNumFeaturesSerialized() {
+        return 0x00010002;
+    }
+
+    get VerDefaultValueSerialized() {
+        return 0x00010004;
+    }
+
+    get VerCategoricalSplitSerialized() {
+        return 0x00010005;
+    }
 };
 
 mlnet.LightGbmRegressionModelParameters = class extends mlnet.TreeEnsembleModelParametersBasedOnRegressionTree {
@@ -2101,9 +2120,17 @@ mlnet.LightGbmRegressionModelParameters = class extends mlnet.TreeEnsembleModelP
         super(context);
     }
 
-    get VerNumFeaturesSerialized() { return 0x00010002; }
-    get VerDefaultValueSerialized() { return 0x00010004; }
-    get VerCategoricalSplitSerialized() { return 0x00010005; }
+    get VerNumFeaturesSerialized() {
+        return 0x00010002;
+    }
+
+    get VerDefaultValueSerialized() {
+        return 0x00010004;
+    }
+
+    get VerCategoricalSplitSerialized() {
+        return 0x00010005;
+    }
 };
 
 mlnet.LightGbmBinaryModelParameters = class extends mlnet.TreeEnsembleModelParametersBasedOnRegressionTree {
@@ -2112,9 +2139,17 @@ mlnet.LightGbmBinaryModelParameters = class extends mlnet.TreeEnsembleModelParam
         super(context);
     }
 
-    get VerNumFeaturesSerialized() { return 0x00010002; }
-    get VerDefaultValueSerialized() { return 0x00010004; }
-    get VerCategoricalSplitSerialized() { return 0x00010005; }
+    get VerNumFeaturesSerialized() {
+        return 0x00010002;
+    }
+
+    get VerDefaultValueSerialized() {
+        return 0x00010004;
+    }
+
+    get VerCategoricalSplitSerialized() {
+        return 0x00010005;
+    }
 };
 
 mlnet.FeatureWeightsCalibratedModelParameters = class extends mlnet.ValueMapperCalibratedModelParametersBase {
@@ -2453,7 +2488,7 @@ mlnet.Error = class extends Error {
 
     constructor(message) {
         super(message);
-        this.name = 'ML.NET Error';
+        this.name = 'Error loading ML.NET model.';
     }
 };
 

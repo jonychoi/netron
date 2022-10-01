@@ -8,7 +8,7 @@ lightgbm.ModelFactory = class {
         try {
             const stream = context.stream;
             const signature = [ 0x74, 0x72, 0x65, 0x65, 0x0A ];
-            if (stream.length >= signature.length && stream.peek(signature.length).every((value, index) => value === signature[index])) {
+            if (stream && stream.length >= signature.length && stream.peek(signature.length).every((value, index) => value === signature[index])) {
                 return 'lightgbm.text';
             }
         }
@@ -38,7 +38,7 @@ lightgbm.ModelFactory = class {
                         const buffer = stream.peek();
                         const decoder = new TextDecoder('utf-8');
                         const model_str = decoder.decode(buffer);
-                        const execution = new python.Execution(null);
+                        const execution = new python.Execution();
                         obj = execution.invoke('lightgbm.basic.Booster', []);
                         obj.LoadModelFromString(model_str);
                         format = 'LightGBM';

@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 /* eslint "no-console": off */
 
 const fs = require('fs');
@@ -7,20 +5,17 @@ const path = require('path');
 const process = require('process');
 const util = require('util');
 
-// const json = require('../source/json');
+const base = require('../source/base');
 const protobuf = require('../source/protobuf');
 const flatbuffers = require('../source/flatbuffers');
-const sidebar = require('../source/view-sidebar.js');
-const view = require('../source/view.js');
+const sidebar = require('../source/view-sidebar');
+const view = require('../source/view');
 const zip = require('../source/zip');
 const gzip = require('../source/gzip');
 const tar = require('../source/tar');
-const base = require('../source/base');
 
 global.Int64 = base.Int64;
 global.Uint64 = base.Uint64;
-
-// global.json = json;
 global.protobuf = protobuf;
 global.flatbuffers = flatbuffers;
 
@@ -56,7 +51,7 @@ global.TextDecoder = class {
     }
 };
 
-const filter = process.argv.length > 2 ? new RegExp('^' + process.argv[2].replace(/\./, '\\.').replace(/\*/, '.*')) : null;
+const filter = process.argv.length > 2 ? process.argv[2].split('*') : ['', ''];
 const dataFolder = path.normalize(__dirname + '/../third_party/test');
 const items = JSON.parse(fs.readFileSync(__dirname + '/models.json', 'utf-8'));
 
@@ -384,10 +379,9 @@ const decompress = (buffer) => {
 };
 
 const request = (location, cookie) => {
-    const options = { rejectUnauthorized: false };
     const url = new URL(location);
     const protocol = url.protocol === 'https:' ? require('https') : require('http');
-    const request = protocol.request(location, options);
+    const request = protocol.request(location, {});
     return new Promise((resolve, reject) => {
         if (cookie && cookie.length > 0) {
             request.setHeader('Cookie', cookie);
@@ -666,8 +660,28 @@ const loadModel = (target, item) => {
                             argument.type.toString();
                         }
                         if (argument.initializer) {
-                            argument.initializer.toString();
+                            // console.log(argument.name);
                             argument.initializer.type.toString();
+                            const log = (/* message */) => {
+                                // console.log('  ' + message);
+                            };
+                            const tensor = new sidebar.Tensor(argument.initializer);
+                            if (tensor.layout !== '<' && tensor.layout !== '>' && tensor.layout !== '|' && tensor.layout !== 'sparse' && tensor.layout !== 'sparse.coo') {
+                                log("Tensor layout '" + tensor.layout + "' is not implemented.");
+                            }
+                            else if (tensor.empty) {
+                                log('Tensor data is empty.');
+                            }
+                            else if (tensor.type && tensor.type.dataType === '?') {
+                                log('Tensor data type is not defined.');
+                            }
+                            else if (tensor.type && !tensor.type.shape) {
+                                log('Tensor shape is not defined.');
+                            }
+                            else {
+                                tensor.toString();
+                                // tensor.value;
+                            }
                             /*
                             const python = require('../source/python');
                             const tensor = argument.initializer;
@@ -676,7 +690,7 @@ const loadModel = (target, item) => {
                                 switch (data_type) {
                                     case 'boolean': data_type = 'bool'; break;
                                 }
-                                const execution = new python.Execution(null);
+                                const execution = new python.Execution();
                                 const bytes = execution.invoke('io.BytesIO', []);
                                 const dtype = execution.invoke('numpy.dtype', [ data_type ]);
                                 const array = execution.invoke('numpy.asarray', [ tensor.value, dtype ]);
@@ -742,7 +756,7 @@ const next = () => {
     const target = targets[0];
     const folder = dataFolder + '/' + item.type;
     const name = item.type + '/' + target;
-    if (filter && !filter.test(name)) {
+    if ((filter[0] && !name.startsWith(filter[0])) || (filter[1] && !name.endsWith(filter[1]))) {
         next();
         return;
     }

@@ -1845,6 +1845,48 @@ $root.tensorflow.DataType = {
     "DT_UINT64_REF": 123
 };
 
+$root.tensorflow.SerializedDType = class SerializedDType {
+
+    constructor() {
+    }
+
+    static decode(reader, length) {
+        const message = new $root.tensorflow.SerializedDType();
+        const end = length !== undefined ? reader.position + length : reader.length;
+        while (reader.position < end) {
+            const tag = reader.uint32();
+            switch (tag >>> 3) {
+                case 1:
+                    message.datatype = reader.int32();
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+            }
+        }
+        return message;
+    }
+
+    static decodeText(reader) {
+        const message = new $root.tensorflow.SerializedDType();
+        reader.start();
+        while (!reader.end()) {
+            const tag = reader.tag();
+            switch (tag) {
+                case "datatype":
+                    message.datatype = reader.enum($root.tensorflow.DataType);
+                    break;
+                default:
+                    reader.field(tag, message);
+                    break;
+            }
+        }
+        return message;
+    }
+};
+
+$root.tensorflow.SerializedDType.prototype.datatype = 0;
+
 $root.tensorflow.NodeDef = class NodeDef {
 
     constructor() {
@@ -8455,6 +8497,7 @@ $root.tensorflow.CoordinationServiceConfig = class CoordinationServiceConfig {
 
     constructor() {
         this.coordinated_jobs = [];
+        this.recoverable_jobs = [];
     }
 
     static decode(reader, length) {
@@ -8486,6 +8529,9 @@ $root.tensorflow.CoordinationServiceConfig = class CoordinationServiceConfig {
                     break;
                 case 8:
                     message.agent_destruction_without_shutdown = reader.bool();
+                    break;
+                case 9:
+                    message.recoverable_jobs.push(reader.string());
                     break;
                 default:
                     reader.skipType(tag & 7);
@@ -8524,6 +8570,9 @@ $root.tensorflow.CoordinationServiceConfig = class CoordinationServiceConfig {
                     break;
                 case "agent_destruction_without_shutdown":
                     message.agent_destruction_without_shutdown = reader.bool();
+                    break;
+                case "recoverable_jobs":
+                    reader.array(message.recoverable_jobs, () => reader.string());
                     break;
                 default:
                     reader.field(tag, message);
@@ -8933,6 +8982,9 @@ $root.tensorflow.RewriterConfig = class RewriterConfig {
                 case 25:
                     message.auto_mixed_precision_mkl = reader.int32();
                     break;
+                case 31:
+                    message.auto_mixed_precision_onednn_bfloat16 = reader.int32();
+                    break;
                 case 29:
                     message.auto_mixed_precision_cpu = reader.int32();
                     break;
@@ -9052,6 +9104,9 @@ $root.tensorflow.RewriterConfig = class RewriterConfig {
                 case "auto_mixed_precision_mkl":
                     message.auto_mixed_precision_mkl = reader.enum($root.tensorflow.RewriterConfig.Toggle);
                     break;
+                case "auto_mixed_precision_onednn_bfloat16":
+                    message.auto_mixed_precision_onednn_bfloat16 = reader.enum($root.tensorflow.RewriterConfig.Toggle);
+                    break;
                 case "auto_mixed_precision_cpu":
                     message.auto_mixed_precision_cpu = reader.enum($root.tensorflow.RewriterConfig.Toggle);
                     break;
@@ -9132,6 +9187,7 @@ $root.tensorflow.RewriterConfig.prototype.pin_to_host_optimization = 0;
 $root.tensorflow.RewriterConfig.prototype.implementation_selector = 0;
 $root.tensorflow.RewriterConfig.prototype.auto_mixed_precision = 0;
 $root.tensorflow.RewriterConfig.prototype.auto_mixed_precision_mkl = 0;
+$root.tensorflow.RewriterConfig.prototype.auto_mixed_precision_onednn_bfloat16 = 0;
 $root.tensorflow.RewriterConfig.prototype.auto_mixed_precision_cpu = 0;
 $root.tensorflow.RewriterConfig.prototype.disable_meta_optimizer = false;
 $root.tensorflow.RewriterConfig.prototype.use_plugin_optimizers = 0;

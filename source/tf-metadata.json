@@ -2171,7 +2171,7 @@
   {
     "name": "ApproxTopK",
     "summary": "Returns min/max k values and their indices of the input operand in an approximate manner.",
-    "description": "Returns min/max k values and their indices of the input operand in an approximate manner.",
+    "description": "See https://arxiv.org/abs/2206.14286 for the algorithm details.\nThis op is only optimized on TPU currently.",
     "attributes": [
       {
         "name": "k",
@@ -8039,6 +8039,31 @@
     ]
   },
   {
+    "name": "CollateTPUEmbeddingMemory",
+    "summary": "An op that merges the string-encoded memory config protos from all hosts.",
+    "attributes": [
+      {
+        "name": "N",
+        "type": "int64",
+        "minimum": 1
+      }
+    ],
+    "inputs": [
+      {
+        "name": "memory_configs",
+        "description": "String-encoded memory config protos containing metadata about\nthe memory allocations reserved for TPUEmbedding across all hosts.",
+        "numberAttr": "N",
+        "type": 7
+      }
+    ],
+    "outputs": [
+      {
+        "name": "merged_memory_config",
+        "type": 7
+      }
+    ]
+  },
+  {
     "name": "CollectiveAllToAllV3",
     "summary": "Mutually exchanges multiple tensors of identical type and shape.",
     "attributes": [
@@ -9210,6 +9235,54 @@
     ]
   },
   {
+    "name": "ConfigureTPUEmbeddingHost",
+    "summary": "An op that configures the TPUEmbedding software on a host.",
+    "attributes": [
+      {
+        "name": "config",
+        "type": "string",
+        "description": "An TPUEmbeddingConfiguration proto serialized to a string,\ndescribing the desired TPUEmbedding configuration."
+      }
+    ],
+    "inputs": [
+      {
+        "name": "common_config",
+        "description": "A string-encoded common configuration proto containing metadata\nabout the TPUEmbedding partitioner output.",
+        "type": 7
+      },
+      {
+        "name": "memory_config",
+        "description": "A string-encoded memory config proto containing metadata about\nthe memory allocations reserved for TPUEmbedding.",
+        "type": 7
+      }
+    ],
+    "outputs": [
+      {
+        "name": "network_config",
+        "description": "A string containing metadata about the hostname and RPC port\nused for communication with this host.",
+        "type": 7
+      }
+    ]
+  },
+  {
+    "name": "ConfigureTPUEmbeddingMemory",
+    "summary": "An op that configures the TPUEmbedding software on a host.",
+    "inputs": [
+      {
+        "name": "common_config",
+        "description": "A string-encoded CommonConfiguration proto containing metadata\nabout the TPUEmbedding partitioner output and the HBM size (in bytes) required\nfor operation.",
+        "type": 7
+      }
+    ],
+    "outputs": [
+      {
+        "name": "memory_config",
+        "description": "A string-encoded memory configuration containing metadata about\nthe memory allocations reserved for TPUEmbedding.",
+        "type": 7
+      }
+    ]
+  },
+  {
     "name": "Conj",
     "summary": "Returns the complex conjugate of a complex number.",
     "description": "Given a tensor `input` of complex numbers, this operation returns a tensor of\ncomplex numbers that are the complex conjugate of each element in `input`. The\ncomplex numbers in `input` must be of the form \\\\(a + bj\\\\), where *a* is the\nreal part and *b* is the imaginary part.\n\nThe complex conjugate returned by this operation is of the form \\\\(a - bj\\\\).\n\nFor example:\n\n```\n# tensor 'input' is [-2.25 + 4.75j, 3.25 + 5.75j]\ntf.conj(input) ==> [-2.25 - 4.75j, 3.25 - 5.75j]\n```",
@@ -9270,6 +9343,26 @@
       {
         "name": "y",
         "typeAttr": "T"
+      }
+    ]
+  },
+  {
+    "name": "ConnectTPUEmbeddingHosts",
+    "summary": "An op that sets up communication between TPUEmbedding host software instances",
+    "description": "after ConfigureTPUEmbeddingHost has been called on each host.",
+    "attributes": [
+      {
+        "name": "N",
+        "type": "int64",
+        "minimum": 1
+      }
+    ],
+    "inputs": [
+      {
+        "name": "network_configs",
+        "description": "Strings containing metadata about the hostname and RPC port\nused for communication with all hosts.",
+        "numberAttr": "N",
+        "type": 7
       }
     ]
   },
@@ -11508,43 +11601,12 @@
     ]
   },
   {
-    "name": "DTensorShardedPrefix",
-    "attributes": [
-      {
-        "name": "dtypes",
-        "type": "type[]",
-        "minimum": 1
-      }
-    ],
+    "name": "DTensorSetGlobalTPUArray",
+    "summary": "An op that informs a host of the global ids of all the of TPUs in the system.",
     "inputs": [
       {
-        "name": "prefix",
-        "type": 7
-      },
-      {
-        "name": "tensor_names",
-        "type": 7
-      },
-      {
-        "name": "shape_and_slices",
-        "type": 7
-      },
-      {
-        "name": "mesh",
-        "type": 7
-      },
-      {
-        "name": "layouts",
-        "type": 7
-      },
-      {
-        "name": "tensors",
-        "typeListAttr": "dtypes"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "output",
+        "name": "topology",
+        "description": "A serialized tensorflow.tpu.TopologyProto that describes the TPU topology.",
         "type": 7
       }
     ]
@@ -11833,6 +11895,95 @@
       {
         "name": "dataset_id",
         "type": 9
+      },
+      {
+        "name": "processing_mode",
+        "type": 7
+      },
+      {
+        "name": "address",
+        "type": 7
+      },
+      {
+        "name": "protocol",
+        "type": 7
+      },
+      {
+        "name": "job_name",
+        "type": 7
+      },
+      {
+        "name": "consumer_index",
+        "type": 9
+      },
+      {
+        "name": "num_consumers",
+        "type": 9
+      },
+      {
+        "name": "max_outstanding_requests",
+        "type": 9
+      },
+      {
+        "name": "iteration_counter",
+        "type": 20
+      }
+    ],
+    "outputs": [
+      {
+        "name": "handle",
+        "type": 21
+      }
+    ]
+  },
+  {
+    "name": "DataServiceDatasetV4",
+    "summary": "Creates a dataset that reads data from the tf.data service.",
+    "attributes": [
+      {
+        "name": "task_refresh_interval_hint_ms",
+        "type": "int64",
+        "default": -1
+      },
+      {
+        "name": "output_types",
+        "type": "type[]",
+        "minimum": 1
+      },
+      {
+        "name": "output_shapes",
+        "type": "shape[]",
+        "minimum": 1
+      },
+      {
+        "name": "data_transfer_protocol",
+        "type": "string",
+        "default": ""
+      },
+      {
+        "name": "target_workers",
+        "type": "string",
+        "default": "AUTO"
+      },
+      {
+        "name": "uncompress",
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "uncompress_fn",
+        "type": "function"
+      },
+      {
+        "name": "cross_trainer_cache_options",
+        "type": "string",
+        "default": ""
+      }
+    ],
+    "inputs": [
+      {
+        "name": "dataset_id",
+        "type": 7
       },
       {
         "name": "processing_mode",
@@ -15499,6 +15650,25 @@
     ]
   },
   {
+    "name": "ExecuteTPUEmbeddingPartitioner",
+    "summary": "An op that executes the TPUEmbedding partitioner on the central configuration",
+    "description": "device and computes the HBM size (in bytes) required for TPUEmbedding operation.",
+    "attributes": [
+      {
+        "name": "config",
+        "type": "string",
+        "description": "An TPUEmbeddingConfiguration proto serialized to a string,\ndescribing the desired TPUEmbedding configuration."
+      }
+    ],
+    "outputs": [
+      {
+        "name": "common_config",
+        "description": "A string-encoded common configuration proto\ncontaining metadata about the TPUEmbedding partitioner output and\nthe HBM size (in bytes) required for operation.",
+        "type": 7
+      }
+    ]
+  },
+  {
     "name": "Exit",
     "summary": "Exits the current frame to its parent frame.",
     "description": "Exit makes its input `data` available to the parent frame.",
@@ -17972,6 +18142,22 @@
     ]
   },
   {
+    "name": "FinalizeTPUEmbedding",
+    "summary": "An op that finalizes the TPUEmbedding configuration.",
+    "inputs": [
+      {
+        "name": "common_config",
+        "description": "A string-encoded common configuration proto containing metadata\nabout the TPUEmbedding partitioner output and the HBM size (in bytes) required\nfor operation.",
+        "type": 7
+      },
+      {
+        "name": "memory_config",
+        "description": "A string-encoded memory config proto containing metadata about\nthe memory allocations reserved for TPUEmbedding.",
+        "type": 7
+      }
+    ]
+  },
+  {
     "name": "Fingerprint",
     "summary": "Generates fingerprint values.",
     "description": "Generates fingerprint values of `data`.\n\nFingerprint op considers the first dimension of `data` as the batch dimension,\nand `output[i]` contains the fingerprint value generated from contents in\n`data[i, ...]` for all `i`.\n\nFingerprint op writes fingerprint values as byte arrays. For example, the\ndefault method `farmhash64` generates a 64-bit fingerprint value at a time.\nThis 8-byte value is written out as an `uint8` array of size 8, in little-endian\norder.\n\nFor example, suppose that `data` has data type `DT_INT32` and shape (2, 3, 4),\nand that the fingerprint method is `farmhash64`. In this case, the output shape\nis (2, 8), where 2 is the batch dimension size of `data`, and 8 is the size of\neach fingerprint value in bytes. `output[0, :]` is generated from 12 integers in\n`data[0, :, :]` and similarly `output[1, :]` is generated from other 12 integers\nin `data[1, :, :]`.\n\nNote that this op fingerprints the raw underlying buffer, and it does not\nfingerprint Tensor's metadata such as data type and/or shape. For example, the\nfingerprint values are invariant under reshapes and bitcasts as long as the\nbatch dimension remain the same:\n\n```\nFingerprint(data) == Fingerprint(Reshape(data, ...))\nFingerprint(data) == Fingerprint(Bitcast(data, ...))\n```\n\nFor string data, one should expect `Fingerprint(data) !=\nFingerprint(ReduceJoin(data))` in general.",
@@ -18396,8 +18582,8 @@
   },
   {
     "name": "FloorMod",
-    "summary": "Returns element-wise remainder of division. When `x < 0` xor `y < 0` is",
-    "description": "true, this follows Python semantics in that the result here is consistent\nwith a flooring divide. E.g. `floor(x / y) * y + mod(x, y) = x`.\n\n*NOTE*: `FloorMod` supports broadcasting. More about broadcasting\n[here](http://docs.scipy.org/doc/numpy/user/basics.broadcasting.html)",
+    "summary": "Returns element-wise remainder of division.",
+    "description": "This follows Python semantics in that the\nresult here is consistent with a flooring divide. E.g.\n`floor(x / y) * y + floormod(x, y) = x`, regardless of the signs of x and y.\n\n*NOTE*: `FloorMod` supports broadcasting. More about broadcasting\n[here](http://docs.scipy.org/doc/numpy/user/basics.broadcasting.html)",
     "attributes": [
       {
         "name": "T",
@@ -23165,6 +23351,44 @@
     ]
   },
   {
+    "name": "ListDataset",
+    "summary": "Creates a dataset that emits each of `tensors` once.",
+    "attributes": [
+      {
+        "name": "Tinput_types",
+        "type": "type[]",
+        "minimum": 1
+      },
+      {
+        "name": "output_types",
+        "type": "type[]",
+        "minimum": 1
+      },
+      {
+        "name": "output_shapes",
+        "type": "shape[]",
+        "minimum": 1
+      },
+      {
+        "name": "metadata",
+        "type": "string",
+        "default": ""
+      }
+    ],
+    "inputs": [
+      {
+        "name": "tensors",
+        "typeListAttr": "Tinput_types"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "handle",
+        "type": 21
+      }
+    ]
+  },
+  {
     "name": "ListDiff",
     "summary": "Computes the difference between two lists of numbers or strings.",
     "description": "Given a list `x` and a list `y`, this operation returns a list `out` that\nrepresents all values that are in `x` but not in `y`. The returned list `out`\nis sorted in the same order that the numbers appear in `x` (duplicates are\npreserved). This operation also returns a list `idx` that represents the\nposition of each `out` element in `x`. In other words:\n\n`out[i] = x[idx[i]] for i in [0, 1, ..., len(out) - 1]`\n\nFor example, given this input:\n\n```\nx = [1, 2, 3, 4, 5, 6]\ny = [1, 3, 5]\n```\n\nThis operation would return:\n\n```\nout ==> [2, 4, 6]\nidx ==> [1, 3, 5]\n```",
@@ -26804,13 +27028,19 @@
   {
     "name": "MergeV2Checkpoints",
     "summary": "V2 format specific: merges the metadata files of sharded checkpoints.  The",
-    "description": "result is one logical checkpoint, with one physical metadata file and renamed\ndata files.\n\nIntended for \"grouping\" multiple checkpoints in a sharded checkpoint setup.\n\nIf delete_old_dirs is true, attempts to delete recursively the dirname of each\npath in the input checkpoint_prefixes.  This is useful when those paths are non\nuser-facing temporary locations.",
+    "description": "result is one logical checkpoint, with one physical metadata file and renamed\ndata files.\n\nIntended for \"grouping\" multiple checkpoints in a sharded checkpoint setup.\n\nIf delete_old_dirs is true, attempts to delete recursively the dirname of each\npath in the input checkpoint_prefixes.  This is useful when those paths are non\nuser-facing temporary locations.\n\nIf allow_missing_files is true, merges the checkpoint prefixes as long as\nat least one file exists. Otherwise, if no files exist, an error will be thrown.\nThe default value for allow_missing_files is false.",
     "attributes": [
       {
         "name": "delete_old_dirs",
         "type": "boolean",
         "description": "see above.",
         "default": true
+      },
+      {
+        "name": "allow_missing_files",
+        "type": "boolean",
+        "description": "see above.",
+        "default": false
       }
     ],
     "inputs": [
@@ -28550,7 +28780,7 @@
       {
         "name": "TI",
         "type": "type",
-        "description": "Must be one of the following: `uint8`, `int32`, `int64`.",
+        "description": "Must be one of the following: `uint8`, `int8`, `int32`, `int64`.",
         "default": {
           "type": "type",
           "value": 9
@@ -36947,6 +37177,12 @@
     "description": "Output values are a bijection of the `index` for any combination and `seed` and `max_index`.\n\nIf multiple inputs are vectors (matrix in case of seed) then the size of the\nfirst dimension must match.\n\nThe outputs are deterministic.",
     "attributes": [
       {
+        "name": "rounds",
+        "type": "int64",
+        "description": "The number of rounds to use the in block cipher.",
+        "default": 4
+      },
+      {
         "name": "dtype",
         "type": "type",
         "description": "The dtype of the input and output. Must be one of the following: `int32`, `uint32`, `int64`, `uint64`."
@@ -38629,6 +38865,51 @@
       {
         "name": "dataset_id",
         "type": 9
+      }
+    ]
+  },
+  {
+    "name": "RegisterDatasetV2",
+    "summary": "Registers a dataset with the tf.data service.",
+    "attributes": [
+      {
+        "name": "external_state_policy",
+        "type": "int64"
+      },
+      {
+        "name": "element_spec",
+        "type": "string",
+        "default": ""
+      },
+      {
+        "name": "requested_dataset_id",
+        "type": "string",
+        "default": ""
+      },
+      {
+        "name": "metadata",
+        "type": "string",
+        "default": ""
+      }
+    ],
+    "inputs": [
+      {
+        "name": "dataset",
+        "type": 21
+      },
+      {
+        "name": "address",
+        "type": 7
+      },
+      {
+        "name": "protocol",
+        "type": 7
+      }
+    ],
+    "outputs": [
+      {
+        "name": "dataset_id",
+        "type": 7
       }
     ]
   },
@@ -44367,11 +44648,11 @@
   {
     "name": "RngReadAndSkip",
     "summary": "Advance the counter of a counter-based RNG.",
-    "description": "The state of the RNG after\n`rng_read_and_skip(n)` will be the same as that after `uniform([n])`\n(or any other distribution). The actual increment added to the\ncounter is an unspecified implementation choice.",
+    "description": "The state of the RNG after\n`rng_read_and_skip(n)` will be the same as that after `uniform([n])`\n(or any other distribution). The actual increment added to the\ncounter is an unspecified implementation choice.\n\nIn the case that the input algorithm is RNG_ALG_AUTO_SELECT, the counter in the state needs to be of size int64[2], the current maximal counter size among algorithms. In this case, this op will manage the counter as if it is an 128-bit integer with layout [lower_64bits, higher_64bits]. If an algorithm needs less than 128 bits for the counter, it should use the left portion of the int64[2]. In this way, the int64[2] is compatible with all current RNG algorithms (Philox, ThreeFry and xla::RandomAlgorithm::RNG_DEFAULT). Downstream RNG ops can thus use this counter with any RNG algorithm.",
     "inputs": [
       {
         "name": "resource",
-        "description": "The handle of the resource variable that stores the state of the RNG.",
+        "description": "The handle of the resource variable that stores the state of the RNG. The state consists of the counter followed by the key.",
         "type": 20
       },
       {
@@ -45377,7 +45658,7 @@
   {
     "name": "ScatterNd",
     "summary": "Scatters `updates` into a tensor of shape `shape` according to `indices`.",
-    "description": "Scatter sparse `updates` according to individual values at the specified\n`indices`. This op returns an output tensor with the `shape` you specify. This\nop is the inverse of the `tf.gather_nd` operator which extracts values or slices\nfrom a given tensor.\n\nThis operation is similar to `tf.tensor_scatter_nd_add`, except that the tensor\nis zero-initialized. Calling `tf.scatter_nd(indices, updates, shape)`\nis identical to calling\n`tf.tensor_scatter_nd_add(tf.zeros(shape, updates.dtype), indices, updates)`\n\nIf `indices` contains duplicates, the associated `updates` are accumulated\n(summed) into the output tensor.\n\n**WARNING**: For floating-point data types, the output may be nondeterministic.\nThis is because the order in which the updates are applied is nondeterministic\nand when floating-point numbers are added in different orders the resulting\nnumerical approximation error can be slightly different. However, the output\nwill be deterministic if op determinism is enabled via\n`tf.config.experimental.enable_op_determinism`.\n\n`indices` is an integer tensor containing indices into the output tensor. The\nlast dimension of `indices` can be at most the rank of `shape`:\n\n    indices.shape[-1] <= shape.rank\n\nThe last dimension of `indices` corresponds to indices of elements\n(if `indices.shape[-1] = shape.rank`) or slices\n(if `indices.shape[-1] < shape.rank`) along dimension `indices.shape[-1]` of\n`shape`.\n\n`updates` is a tensor with shape:\n\n    indices.shape[:-1] + shape[indices.shape[-1]:]\n\nThe simplest form of the scatter op is to insert individual elements in\na tensor by index. Consider an example where you want to insert 4 scattered\nelements in a rank-1 tensor with 8 elements.\n\n<div style=\"width:70%; margin:auto; margin-bottom:10px; margin-top:20px;\">\n<img style=\"width:100%\" src=\"https://www.tensorflow.org/images/ScatterNd1.png\" alt>\n</div>\n\nIn Python, this scatter operation would look like this:\n\n```python\n    indices = tf.constant([[4], [3], [1], [7]])\n    updates = tf.constant([9, 10, 11, 12])\n    shape = tf.constant([8])\n    scatter = tf.scatter_nd(indices, updates, shape)\n    print(scatter)\n```\n\nThe resulting tensor would look like this:\n\n    [0, 11, 0, 10, 9, 0, 0, 12]\n\nYou can also insert entire slices of a higher rank tensor all at once. For\nexample, you can insert two slices in the first dimension of a rank-3 tensor\nwith two matrices of new values.\n\n<div style=\"width:70%; margin:auto; margin-bottom:10px; margin-top:20px;\">\n<img style=\"width:100%\" src=\"https://www.tensorflow.org/images/ScatterNd2.png\" alt>\n</div>\n\nIn Python, this scatter operation would look like this:\n\n```python\n    indices = tf.constant([[0], [2]])\n    updates = tf.constant([[[5, 5, 5, 5], [6, 6, 6, 6],\n                            [7, 7, 7, 7], [8, 8, 8, 8]],\n                           [[5, 5, 5, 5], [6, 6, 6, 6],\n                            [7, 7, 7, 7], [8, 8, 8, 8]]])\n    shape = tf.constant([4, 4, 4])\n    scatter = tf.scatter_nd(indices, updates, shape)\n    print(scatter)\n```\n\nThe resulting tensor would look like this:\n\n    [[[5, 5, 5, 5], [6, 6, 6, 6], [7, 7, 7, 7], [8, 8, 8, 8]],\n     [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]],\n     [[5, 5, 5, 5], [6, 6, 6, 6], [7, 7, 7, 7], [8, 8, 8, 8]],\n     [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]]\n\nNote that on CPU, if an out of bound index is found, an error is returned.\nOn GPU, if an out of bound index is found, the index is ignored.",
+    "description": "Scatter sparse `updates` according to individual values at the specified\n`indices`. This op returns an output tensor with the `shape` you specify. This\nop is the inverse of the `tf.gather_nd` operator which extracts values or slices\nfrom a given tensor.\n\nThis operation is similar to `tf.tensor_scatter_nd_add`, except that the tensor\nis zero-initialized. Calling `tf.scatter_nd(indices, updates, shape)`\nis identical to calling\n`tf.tensor_scatter_nd_add(tf.zeros(shape, updates.dtype), indices, updates)`\n\nIf `indices` contains duplicates, the associated `updates` are accumulated\n(summed) into the output tensor.\n\n**WARNING**: For floating-point data types, the output may be nondeterministic.\nThis is because the order in which the updates are applied is nondeterministic\nand when floating-point numbers are added in different orders the resulting\nnumerical approximation error can be slightly different. However, the output\nwill be deterministic if op determinism is enabled via\n`tf.config.experimental.enable_op_determinism`.\n\n`indices` is an integer tensor containing indices into the output tensor. The\nlast dimension of `indices` can be at most the rank of `shape`:\n\n    indices.shape[-1] <= shape.rank\n\nThe last dimension of `indices` corresponds to indices of elements\n(if `indices.shape[-1] = shape.rank`) or slices\n(if `indices.shape[-1] < shape.rank`) along dimension `indices.shape[-1]` of\n`shape`.\n\n`updates` is a tensor with shape:\n\n    indices.shape[:-1] + shape[indices.shape[-1]:]\n\nThe simplest form of the scatter op is to insert individual elements in\na tensor by index. Consider an example where you want to insert 4 scattered\nelements in a rank-1 tensor with 8 elements.\n\n<div style=\"width:70%; margin:auto; margin-bottom:10px; margin-top:20px;\">\n<img style=\"width:100%\" src=\"https://www.tensorflow.org/images/ScatterNd1.png\" alt>\n</div>\n\nIn Python, this scatter operation would look like this:\n\n```python\n    indices = tf.constant([[4], [3], [1], [7]])\n    updates = tf.constant([9, 10, 11, 12])\n    shape = tf.constant([8])\n    scatter = tf.scatter_nd(indices, updates, shape)\n    print(scatter)\n```\n\nThe resulting tensor would look like this:\n\n    [0, 11, 0, 10, 9, 0, 0, 12]\n\nYou can also insert entire slices of a higher rank tensor all at once. For\nexample, you can insert two slices in the first dimension of a rank-3 tensor\nwith two matrices of new values.\n\n<div style=\"width:70%; margin:auto; margin-bottom:10px; margin-top:20px;\">\n<img style=\"width:100%\" src=\"https://www.tensorflow.org/images/ScatterNd2.png\" alt>\n</div>\n\nIn Python, this scatter operation would look like this:\n\n```python\n    indices = tf.constant([[1], [3]])\n    updates = tf.constant([[[5, 5, 5, 5], [6, 6, 6, 6],\n                            [7, 7, 7, 7], [8, 8, 8, 8]],\n                           [[5, 5, 5, 5], [6, 6, 6, 6],\n                            [7, 7, 7, 7], [8, 8, 8, 8]]])\n    shape = tf.constant([4, 4, 4])\n    scatter = tf.scatter_nd(indices, updates, shape)\n    print(scatter)\n```\n\nThe resulting tensor would look like this:\n\n    [[[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]],\n     [[5, 5, 5, 5], [6, 6, 6, 6], [7, 7, 7, 7], [8, 8, 8, 8]],\n     [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]],\n     [[5, 5, 5, 5], [6, 6, 6, 6], [7, 7, 7, 7], [8, 8, 8, 8]]]\n\nNote that on CPU, if an out of bound index is found, an error is returned.\nOn GPU, if an out of bound index is found, the index is ignored.",
     "attributes": [
       {
         "name": "T",
@@ -51902,7 +52183,7 @@
       {
         "name": "Tlen",
         "type": "type",
-        "description": "Must be one of the following: `int32`, `int64`.",
+        "description": "Must be one of the following: `int8`, `int32`, `int64`.",
         "default": {
           "type": "type",
           "value": 9
@@ -59394,6 +59675,446 @@
     ]
   },
   {
+    "name": "UniformDequantize",
+    "summary": "Perform dequantization on the quantized Tensor `input`.",
+    "description": "Given quantized `input` which was quantized using `scales` and `zero_points`, performs dequantization using the formula:\ndequantized_data = (quantized_data - zero_point) * scale.",
+    "attributes": [
+      {
+        "name": "Tin",
+        "type": "type",
+        "description": "The type of input Tensor. A tf.DType from: tf.float32 Must be one of the following: `qint8`, `qint32`."
+      },
+      {
+        "name": "Tout",
+        "type": "type",
+        "description": "The type of output Tensor. A tf.DType from: tf.qint8, tf.qint32 Must be one of the following: `float32`."
+      },
+      {
+        "name": "quantization_axis",
+        "type": "int64",
+        "description": "Indicates the dimension index of the tensor where per-axis quantization is applied for the slices along that dimension.\nIf set to -1 (default), this indicates per-tensor quantization. Otherwise, it must be set within range [0, input.dims()).",
+        "default": -1
+      },
+      {
+        "name": "quantization_min_val",
+        "type": "int64",
+        "description": "The quantization min value that was used when input was quantized.\nThe purpose of this attribute is typically (but not limited to) to indicate narrow range, where this is set to:\n`(Tin lowest) + 1` if narrow range, and `(Tin lowest)` otherwise.\nFor example, if Tin is qint8, this is set to -127 if narrow range quantized or -128 if not."
+      },
+      {
+        "name": "quantization_max_val",
+        "type": "int64",
+        "description": "The quantization max value that was used when input was quantized.\nThe purpose of this attribute is typically (but not limited to) indicate narrow range, where this is set to:\n`(Tout max)` for both narrow range and not narrow range.\nFor example, if Tin is qint8, this is set to 127."
+      }
+    ],
+    "inputs": [
+      {
+        "name": "input",
+        "description": "Must be a Tensor of Tin.",
+        "typeAttr": "Tin"
+      },
+      {
+        "name": "scales",
+        "description": "The float value(s) used as scale(s) when quantizing original data that input represents.\nMust be a scalar Tensor if quantization_axis is -1 (per-tensor quantization), otherwise 1D Tensor of size (input.dim_size(quantization_axis),) (per-axis quantization).",
+        "type": 1
+      },
+      {
+        "name": "zero_points",
+        "description": "The int32 value(s) used as zero_point(s) when quantizing original data that input represents.\nSame shape condition as scales.",
+        "type": 3
+      }
+    ],
+    "outputs": [
+      {
+        "name": "output",
+        "description": "The output dequantized Tensor of Tout, whose shape is same as input.",
+        "typeAttr": "Tout"
+      }
+    ]
+  },
+  {
+    "name": "UniformQuantize",
+    "summary": "Perform quantization on Tensor `input`.",
+    "description": "Given `input`, `scales` and `zero_points`, performs quantization using the formula:\nquantized_data = floor(input_data * (1.0f / scale) + 0.5f) + zero_point",
+    "attributes": [
+      {
+        "name": "Tin",
+        "type": "type",
+        "description": "The type of input Tensor. A tf.DType from: tf.qint8, tf.qint32 Must be one of the following: `float32`."
+      },
+      {
+        "name": "Tout",
+        "type": "type",
+        "description": "The type of output Tensor. A tf.DType from: tf.float32 Must be one of the following: `qint8`, `qint32`."
+      },
+      {
+        "name": "quantization_axis",
+        "type": "int64",
+        "description": "Indicates the dimension index of the tensor where per-axis quantization is applied for the slices along that dimension.\nIf set to -1 (default), this indicates per-tensor quantization. Otherwise, it must be set within range [0, input.dims()).",
+        "default": -1
+      },
+      {
+        "name": "quantization_min_val",
+        "type": "int64",
+        "description": "The quantization min value to quantize `input`.\nThe purpose of this attribute is typically (but not limited to) to indicate narrow range, where this is set to:\n`(Tin lowest) + 1` if narrow range, and `(Tin lowest)` otherwise.\nFor example, if Tin is qint8, this is set to -127 if narrow range quantized or -128 if not."
+      },
+      {
+        "name": "quantization_max_val",
+        "type": "int64",
+        "description": "The quantization max value to quantize `input`.\nThe purpose of this attribute is typically (but not limited to) indicate narrow range, where this is set to:\n`(Tout max)` for both narrow range and not narrow range.\nFor example, if Tin is qint8, this is set to 127."
+      }
+    ],
+    "inputs": [
+      {
+        "name": "input",
+        "description": "Must be a Tensor of Tin.",
+        "typeAttr": "Tin"
+      },
+      {
+        "name": "scales",
+        "description": "The float value(s) to use as scale(s) to quantize `input`.\nMust be a scalar Tensor if quantization_axis is -1 (per-tensor quantization), otherwise 1D Tensor of size (input.dim_size(quantization_axis),) (per-axis quantization).",
+        "type": 1
+      },
+      {
+        "name": "zero_points",
+        "description": "The int32 value(s) to use as zero_point(s) to quantize `input`.\nSame shape condition as scales.",
+        "type": 3
+      }
+    ],
+    "outputs": [
+      {
+        "name": "output",
+        "description": "The output quantized Tensor of Tout, whose shape is same as input.",
+        "typeAttr": "Tout"
+      }
+    ]
+  },
+  {
+    "name": "UniformQuantizedClipByValue",
+    "summary": "Perform clip by value on the quantized Tensor `operand`.",
+    "description": "Given quantized `operand` which was quantized using `scales` and `zero_points`, performs clip by value using `min` and `max` values.\nIf quantization_axis is -1 (per-tensor quantized), the entire operand is clipped using scalar min, max.\nOtherwise (per-channel quantized), the clipping is also done per-channel.",
+    "attributes": [
+      {
+        "name": "T",
+        "type": "type",
+        "description": "The type of operand, min, max, and output. A tf.DType from: tf.qint32 Must be one of the following: `qint32`."
+      },
+      {
+        "name": "quantization_axis",
+        "type": "int64",
+        "description": "Indicates the dimension index of the tensor where per-axis quantization is applied for the slices along that dimension.\nIf set to -1 (default), this indicates per-tensor quantization. Otherwise, it must be set within range [0, operand.dims()).",
+        "default": -1
+      },
+      {
+        "name": "quantization_min_val",
+        "type": "int64",
+        "description": "The quantization min value that was used when operand was quantized."
+      },
+      {
+        "name": "quantization_max_val",
+        "type": "int64",
+        "description": "The quantization max value that was used when operand was quantized."
+      }
+    ],
+    "inputs": [
+      {
+        "name": "operand",
+        "description": "Must be a Tensor of T.",
+        "typeAttr": "T"
+      },
+      {
+        "name": "min",
+        "description": "The min value(s) to clip operand. Must be a Tensor of T.\nMust be a scalar Tensor if quantization_axis is -1 (per-tensor quantization), otherwise 1D Tensor of size (operand.dim_size(quantization_axis),) (per-axis quantization).",
+        "typeAttr": "T"
+      },
+      {
+        "name": "max",
+        "description": "The min value(s) to clip operand. Must be a Tensor of T.\nMust be a scalar Tensor if quantization_axis is -1 (per-tensor quantization), otherwise 1D Tensor of size (operand.dim_size(quantization_axis),) (per-axis quantization).",
+        "typeAttr": "T"
+      },
+      {
+        "name": "scales",
+        "description": "The float value(s) used as scale(s) when quantizing `operand`, `min` and `max`.\nMust be a scalar Tensor if quantization_axis is -1 (per-tensor quantization), otherwise 1D Tensor of size (operand.dim_size(quantization_axis),) (per-axis quantization).",
+        "type": 1
+      },
+      {
+        "name": "zero_points",
+        "description": "The int32 value(s) used as zero_point(s) when quantizing `operand`, `min` and `max`.\nSame shape condition as scales.",
+        "type": 3
+      }
+    ],
+    "outputs": [
+      {
+        "name": "output",
+        "description": "The output clipped Tensor of T, whose shape is same as operand.",
+        "typeAttr": "T"
+      }
+    ]
+  },
+  {
+    "name": "UniformQuantizedDot",
+    "summary": "Perform quantized dot of quantized Tensor `lhs` and quantized Tensor `rhs` to make quantized `output`.",
+    "description": "Given quantized `lhs` and quantized `rhs`, performs quantized dot on `lhs` and `rhs` to make quantized `output`.\n`lhs` and `rhs` must be 2D Tensors and the lhs.dim_size(1) must match rhs.dim_size(0).\n`lhs` and `rhs` must be quantized Tensor, where data value is quantized using the formula:\nquantized_data = clip(original_data / scale + zero_point, quantization_min_val, quantization_max_val).\n`output` is also quantized, using the same formula.\nIf `rhs` is per-tensor quantized, `output` must be also per-tensor quantized.",
+    "attributes": [
+      {
+        "name": "Tin",
+        "type": "type",
+        "description": "The type of lhs and rhs input Tensor. Must be one of the following: `qint8`."
+      },
+      {
+        "name": "Tout",
+        "type": "type",
+        "description": "The type of output Tensor. Must be one of the following: `qint32`."
+      },
+      {
+        "name": "lhs_quantization_axis",
+        "type": "int64",
+        "description": "Indicates the dimension index of the tensor where per-axis quantization is applied for the slices along that dimension.\nIf set to -1 (default), this indicates per-tensor quantization.\nFor dot op lhs, only per-tensor quantization is supported.\nThus, this attribute must be set to -1. Other values are rejected.",
+        "default": -1
+      },
+      {
+        "name": "lhs_quantization_min_val",
+        "type": "int64",
+        "description": "The min value of the quantized data stored in lhs.\nFor example, if Tin is qint8, this must be set to -127 if narrow range quantized or -128 if not."
+      },
+      {
+        "name": "lhs_quantization_max_val",
+        "type": "int64",
+        "description": "The max value of the quantized data stored in rhs.\nFor example, if Tin is qint8, this must be set to 127."
+      },
+      {
+        "name": "rhs_quantization_axis",
+        "type": "int64",
+        "description": "Indicates the dimension index of the tensor where per-axis quantization is applied for the slices along that dimension.\nIf set to -1 (default), this indicates per-tensor quantization.\nFor dot op rhs, only per-tensor quantization or per-channel quantization along dimension 1 is supported.\nThus, this attribute must be set to -1 or 1. Other values are rejected.",
+        "default": -1
+      },
+      {
+        "name": "rhs_quantization_min_val",
+        "type": "int64",
+        "description": "The min value of the quantized data stored in rhs.\nFor example, if Trhs is qint8, this must be set to -127 if narrow range quantized or -128 if not."
+      },
+      {
+        "name": "rhs_quantization_max_val",
+        "type": "int64",
+        "description": "The max value of the quantized data stored in rhs.\nFor example, if Trhs is qint8, this must be set to 127."
+      },
+      {
+        "name": "output_quantization_axis",
+        "type": "int64",
+        "description": "Indicates the dimension index of the tensor where per-axis quantization is applied for the slices along that dimension.\nIf set to -1 (default), this indicates per-tensor quantization.\nFor dot op output, only per-tensor quantization or per-channel quantization along dimension 1 is supported.\nThus, this attribute must be set to -1 or 1. Other values are rejected.",
+        "default": -1
+      },
+      {
+        "name": "output_quantization_min_val",
+        "type": "int64",
+        "description": "The min value of the quantized data stored in output.\nFor example, if Tout is qint8, this must be set to -127 if narrow range quantized or -128 if not."
+      },
+      {
+        "name": "output_quantization_max_val",
+        "type": "int64",
+        "description": "The max value of the quantized data stored in output.\nFor example, if Tout is qint8, this must be set to 127."
+      }
+    ],
+    "inputs": [
+      {
+        "name": "lhs",
+        "description": "Must be a 2D Tensor of Tin.",
+        "typeAttr": "Tin"
+      },
+      {
+        "name": "rhs",
+        "description": "Must be a 2D Tensor of Tin.",
+        "typeAttr": "Tin"
+      },
+      {
+        "name": "lhs_scales",
+        "description": "The float value(s) used as scale when quantizing original data that lhs represents.\nMust be a scalar Tensor (lhs supports only per-tensor quantization).",
+        "type": 1
+      },
+      {
+        "name": "lhs_zero_points",
+        "description": "The int32 value(s) used as zero_point when quantizing original data that lhs represents.\nSame shape condition as lhs_scales.",
+        "type": 3
+      },
+      {
+        "name": "rhs_scales",
+        "description": "The float value(s) used as scale when quantizing original data that rhs represents.\nMust be a scalar Tensor (per-tensor quantization) or 1D Tensor of size (rhs.dim_size(1),) (per-channel quantization).",
+        "type": 1
+      },
+      {
+        "name": "rhs_zero_points",
+        "description": "The int32 value(s) used as zero_point when quantizing original data that rhs represents.\nSame shape condition as rhs_scales.",
+        "type": 3
+      },
+      {
+        "name": "output_scales",
+        "description": "The float value(s) to use as scales when quantizing original data that output represents.\nMust be a scalar Tensor (per-tensor quantization) or 1D Tensor of size (output.dim_size(1),) (per-channel quantization).\nIf rhs is per-tensor quantized, output must be also per-tensor quantized.\nThis means that if rhs_scales and rhs_zero_points are scalar Tensors, output_scales and output_zero_points must be scalar Tensors as well.",
+        "type": 1
+      },
+      {
+        "name": "output_zero_points",
+        "description": "The int32 value(s) used as zero_point when quantizing original data that output represents.\nSame shape condition as rhs_scales.",
+        "type": 3
+      }
+    ],
+    "outputs": [
+      {
+        "name": "output",
+        "description": "The output 2D Tensor of Tout, whose shape is (lhs.dim_size(0), rhs.dim_size(1)).",
+        "typeAttr": "Tout"
+      }
+    ]
+  },
+  {
+    "name": "UniformQuantizedDotHybrid",
+    "summary": "Perform hybrid quantized dot of float Tensor `lhs` and quantized Tensor `rhs`.",
+    "description": "Given float `lhs` and quantized `rhs`, internally performs quantization on `lhs`, and then performs quantized dot on quantized lhs and `rhs`.\nThe internal quantization on `lhs` is a quantization to qint8, dynamic range, per-batch (per-axis along axis 0), asymmetric, and not narrow range (the range is [-128, 127]).\n`lhs` and `rhs` must be 2D Tensors and the lhs.dim_size(1) must match rhs.dim_size(0).\n`rhs` must be quantized Tensor, where its data value is quantized using the formula:\nquantized_data = clip(original_data / scale + zero_point, quantization_min_val, quantization_max_val).",
+    "attributes": [
+      {
+        "name": "Tlhs",
+        "type": "type",
+        "description": "The type of lhs input Tensor. Must be one of the following: `float32`."
+      },
+      {
+        "name": "Trhs",
+        "type": "type",
+        "description": "The type of rhs (quantized) input Tensor. Must be one of the following: `qint8`."
+      },
+      {
+        "name": "Tout",
+        "type": "type",
+        "description": "The type of output Tensor. Must be one of the following: `float32`."
+      },
+      {
+        "name": "rhs_quantization_axis",
+        "type": "int64",
+        "description": "Indicates the dimension index of the tensor where per-axis quantization is applied for the slices along that dimension.\nIf set to -1 (default), this indicates per-tensor quantization.\nFor dot op rhs, only per-tensor quantization or per-channel quantization along dimension 1 is supported.\nThus, this attribute must be set to -1 or 1. Other values are rejected.",
+        "default": -1
+      },
+      {
+        "name": "rhs_quantization_min_val",
+        "type": "int64",
+        "description": "The min value of the quantized data stored in rhs.\nFor example, if Trhs is qint8, this must be set to -127 if narrow range quantized or -128 if not."
+      },
+      {
+        "name": "rhs_quantization_max_val",
+        "type": "int64",
+        "description": "The max value of the quantized data stored in rhs.\nFor example, if Trhs is qint8, this must be set to 127."
+      }
+    ],
+    "inputs": [
+      {
+        "name": "lhs",
+        "description": "Must be a 2D Tensor of Tlhs.",
+        "typeAttr": "Tlhs"
+      },
+      {
+        "name": "rhs",
+        "description": "Must be a 2D Tensor of Trhs.",
+        "typeAttr": "Trhs"
+      },
+      {
+        "name": "rhs_scales",
+        "description": "The float value(s) used as scale when quantizing original data that rhs represents.\nMust be a scalar Tensor (per-tensor quantization) or 1D Tensor of size (rhs.dim_size(1),) (per-channel quantization).",
+        "type": 1
+      },
+      {
+        "name": "rhs_zero_points",
+        "description": "The int32 value(s) used as zero_point when quantizing original data that rhs represents.\nSame shape condition as rhs_scales.",
+        "type": 3
+      }
+    ],
+    "outputs": [
+      {
+        "name": "output",
+        "description": "The output 2D Tensor of Tout, whose shape is (lhs.dim_size(0), rhs.dim_size(1)).\nThe output data is the original output data itself (Not quantized).",
+        "typeAttr": "Tout"
+      }
+    ]
+  },
+  {
+    "name": "UniformRequantize",
+    "summary": "Given quantized tensor `input`, requantize it with new quantization parameters.",
+    "description": "Given quantized tensor `input`, which was quantized using {input_scales, input_zero_points, input_quantization_axis, input_quantization_min_val, input_quantization_max_val},\nrequantize it to a tensor, which is quantized using {output_scales, output_zero_points, output_quantization_axis, output_quantization_min_val, output_quantization_max_val}.\nThe requantization is done by using the formula:\noutput_quantized_data = clip(\n  (input_quantized_data - input_zero_point) * (input_scale / output_scale) + output_zero_point,\n  output_quantization_min_val,\n  output_quantization_max_val)\n\nPer-tensor and per-axis quantization supported cases are followings:\n* per-tensor -> per-tensor\n* per-tensor -> per-axis\n* per-axis -> per-axis where input_quantization_axis equals output_quantization_axis.\ni.e. At least one among input_quantization_axis and output_quantization_axis must be -1, or two must be equal.",
+    "attributes": [
+      {
+        "name": "Tin",
+        "type": "type",
+        "description": "The type of input Tensor. A tf.DType from: tf.qint8, tf.qint32 Must be one of the following: `qint8`, `qint32`."
+      },
+      {
+        "name": "Tout",
+        "type": "type",
+        "description": "The type of output Tensor. A tf.DType from: tf.qint8, tf.qint32 Must be one of the following: `qint8`, `qint32`."
+      },
+      {
+        "name": "input_quantization_axis",
+        "type": "int64",
+        "description": "The quantization axis that was used when quantizing original data that `input` represents.\nIndicates the dimension index of the tensor where per-axis quantization is applied for the slices along that dimension.\nIf set to -1 (default), this indicates per-tensor quantization. Otherwise, it must be set within range [0, input.dims()).",
+        "default": -1
+      },
+      {
+        "name": "input_quantization_min_val",
+        "type": "int64",
+        "description": "The quantization min value that was used when quantizing original data that `input` represents.\nThe purpose of this attribute is typically (but not limited to) to indicate narrow range, where this is set to:\n`(Tin lowest) + 1` if narrow range, and `(Tin lowest)` otherwise.\nFor example, if Tin is qint8, this is set to -127 if narrow range quantized or -128 if not."
+      },
+      {
+        "name": "input_quantization_max_val",
+        "type": "int64",
+        "description": "The quantization max value that was used when quantizing original data that `input` represents.\nThe purpose of this attribute is typically (but not limited to) indicate narrow range, where this is set to:\n`(Tout max)` for both narrow range and not narrow range.\nFor example, if Tin is qint8, this is set to 127."
+      },
+      {
+        "name": "output_quantization_axis",
+        "type": "int64",
+        "description": "The new quantization axis to use to quantize original data that `input` represents.",
+        "default": -1
+      },
+      {
+        "name": "output_quantization_min_val",
+        "type": "int64",
+        "description": "The new quantization min value to quantize original data that `input` represents."
+      },
+      {
+        "name": "output_quantization_max_val",
+        "type": "int64",
+        "description": "The new quantization max value to quantize original data that `input` represents."
+      }
+    ],
+    "inputs": [
+      {
+        "name": "input",
+        "description": "Must be a Tensor of Tin.",
+        "typeAttr": "Tin"
+      },
+      {
+        "name": "input_scales",
+        "description": "The float value(s) used as scale(s) when quantizing original data that `input` represents.\nMust be a scalar Tensor if quantization_axis is -1 (per-tensor quantization), otherwise 1D Tensor of size (input.dim_size(quantization_axis),) (per-axis quantization).",
+        "type": 1
+      },
+      {
+        "name": "input_zero_points",
+        "description": "The int32 value(s) used as zero_point(s) when quantizing original data that `input` represents.\nSame shape condition as scales.",
+        "type": 3
+      },
+      {
+        "name": "output_scales",
+        "description": "The float value(s) to use as new scale(s) to quantize original data that `input` represents.\nMust be a scalar Tensor if quantization_axis is -1 (per-tensor quantization), otherwise 1D Tensor of size (input.dim_size(quantization_axis),) (per-axis quantization).",
+        "type": 1
+      },
+      {
+        "name": "output_zero_points",
+        "description": "The int32 value(s) to use as new zero_point(s) to quantize original data that `input` represents.\nSame shape condition as scales.",
+        "type": 3
+      }
+    ],
+    "outputs": [
+      {
+        "name": "output",
+        "description": "The output quantized Tensor of Tout, whose shape is same as input.",
+        "typeAttr": "Tout"
+      }
+    ]
+  },
+  {
     "name": "Unique",
     "summary": "Finds unique elements in a 1-D tensor.",
     "description": "This operation returns a tensor `y` containing all of the unique elements of `x`\nsorted in the same order that they occur in `x`; `x` does not need to be sorted.\nThis operation also returns a tensor `idx` the same size as `x` that contains\nthe index of each value of `x` in the unique output `y`. In other words:\n\n`y[idx[i]] = x[i] for i in [0, 1,...,rank(x) - 1]`\n\nExamples:\n\n```\n# tensor 'x' is [1, 1, 2, 4, 4, 4, 7, 8, 8]\ny, idx = unique(x)\ny ==> [1, 2, 4, 7, 8]\nidx ==> [0, 0, 1, 2, 2, 2, 3, 4, 4]\n```\n\n```\n# tensor 'x' is [4, 5, 1, 2, 3, 3, 4, 5]\ny, idx = unique(x)\ny ==> [4, 5, 1, 2, 3]\nidx ==> [0, 1, 2, 3, 4, 4, 0, 1]\n```",
@@ -60821,6 +61542,99 @@
       {
         "name": "output",
         "typeAttr": "Toutput"
+      }
+    ]
+  },
+  {
+    "name": "XlaRecvTPUEmbeddingActivations",
+    "summary": "An op that receives embedding activations on the TPU.",
+    "description": "The TPU system performs the embedding lookups and aggregations. The results of\nthese aggregations are visible to the Tensorflow Graph as the outputs of a\nXlaRecvTPUEmbeddingActivations Op. This op returns a list containing one\nTensor of activations per table specified in the model.",
+    "attributes": [
+      {
+        "name": "num_tables",
+        "type": "int64",
+        "description": "The number of output activation tensors. If feature descriptor is\npresent in the tpu embedding config, it is equal to the number of features\notherwise equal to number of embedding tables in the model.",
+        "minimum": 1
+      },
+      {
+        "name": "config",
+        "type": "string",
+        "description": "Serialized TPUEmbeddingConfiguration proto."
+      }
+    ],
+    "inputs": [
+      {
+        "name": "deduplication_data",
+        "description": "A Tensor with type=DT_VARIANT containing the deduplication\ndata. The tensor is an XLA nested tuple containing N elements (where N is\nthe ratio of the number of embedding to tensor cores per TPU chip). Each\nelement of the nested tuple is a tuple of rank 1 tensors. Each tensor either\ncontains indices (DT_UINT32) for embedding lookup on the TensorCore or\nweights (DT_FLOAT) to apply to the output of the embedding lookup operation.",
+        "type": 21
+      }
+    ],
+    "outputs": [
+      {
+        "name": "outputs",
+        "description": "A TensorList of embedding activations containing one Tensor per\nembedding table in the model.",
+        "numberAttr": "num_tables",
+        "type": 1
+      }
+    ]
+  },
+  {
+    "name": "XlaRecvTPUEmbeddingDeduplicationData",
+    "summary": "Receives deduplication data (indices and weights) from the embedding core.",
+    "description": "The deduplication data is a Tensor with type=DT_VARIANT. The tensor itself is an\nXLA nested tuple containing N elements (where N is the ratio of the number of\nembedding to tensor cores per TPU chip). Each element of the nested tuple is a\ntuple of rank 1 tensors. Each tensor either contains indices (DT_UINT32) for\nembedding lookup on the TensorCore or weights (DT_FLOAT) to apply to the output\nof the embedding lookup operation.",
+    "attributes": [
+      {
+        "name": "config",
+        "type": "string",
+        "description": "Serialized TPUEmbeddingConfiguration proto."
+      }
+    ],
+    "outputs": [
+      {
+        "name": "output",
+        "type": 21
+      }
+    ]
+  },
+  {
+    "name": "XlaSendTPUEmbeddingGradients",
+    "summary": "An op that performs gradient updates of embedding tables.",
+    "description": "The gradients argument is a TensorList having the same length and shapes as the\nreturn value of XlaRecvTPUEmbeddingActivations, but contains gradients of the\nmodel's loss with respect to the embedding activations. The embedding tables are\nupdated from these gradients via the optimizer specified in the\nTPUEmbeddingConfiguration proto given to tpu.initialize_system.",
+    "attributes": [
+      {
+        "name": "NumTables",
+        "type": "int64",
+        "minimum": 1
+      },
+      {
+        "name": "NumLearningRateTags",
+        "type": "int64",
+        "minimum": 0,
+        "default": 0
+      },
+      {
+        "name": "config",
+        "type": "string",
+        "description": "Serialized TPUEmbeddingConfiguration proto."
+      }
+    ],
+    "inputs": [
+      {
+        "name": "gradients",
+        "description": "A TensorList of gradients with which to update embedding tables.",
+        "numberAttr": "NumTables",
+        "type": 1
+      },
+      {
+        "name": "learning_rates",
+        "description": "A TensorList of learning rates used for updating the embedding\ntables via the optimizer. The length of the TensorList must be equal to the\nnumber of dynamic learning rate tags specified in the\nTPUEmbeddingConfiguration proto.",
+        "numberAttr": "NumLearningRateTags",
+        "type": 1
+      },
+      {
+        "name": "deduplication_data",
+        "description": "A Tensor with type=DT_VARIANT containing the deduplication\ndata. The tensor is an XLA nested tuple containing N elements (where N is\nthe ratio of the number of embedding to tensor cores per TPU chip). Each\nelement of the nested tuple is a tuple of rank 1 tensors. Each tensor either\ncontains indices (DT_UINT32) for embedding lookup on the TensorCore or\nweights (DT_FLOAT) to apply to the output of the embedding lookup operation.",
+        "type": 21
       }
     ]
   },

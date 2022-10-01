@@ -2,12 +2,13 @@
 // Experimental
 
 var barracuda = barracuda || {};
+var base = base || require('./base');
 
 barracuda.ModelFactory = class {
 
     match(context) {
         const stream = context.stream;
-        if (stream.length > 12) {
+        if (stream && stream.length > 12) {
             const buffer = stream.peek(12);
             if (buffer[0] <= 0x20 && buffer.subarray(1, 8).every((value) => value == 0x00)) {
                 return true;
@@ -255,108 +256,15 @@ barracuda.Tensor = class {
 
     constructor(tensor) {
         this._type = new barracuda.TensorType(tensor.itemsize, new barracuda.TensorShape(tensor.shape));
-        this._data = tensor.data;
-    }
-
-    get kind() {
-        return '';
+        this._values = tensor.data;
     }
 
     get type() {
         return this._type;
     }
 
-    get state() {
-        return this._context().state || null;
-    }
-
-    get value() {
-        const context = this._context();
-        if (context.state) {
-            return null;
-        }
-        context.limit = Number.MAX_SAFE_INTEGER;
-        return this._decode(context, 0);
-    }
-
-    toString() {
-        const context = this._context();
-        if (context.state) {
-            return '';
-        }
-        context.limit = 10000;
-        const value = this._decode(context, 0);
-        return JSON.stringify(value, null, 4);
-    }
-
-    _context() {
-        const context = {};
-        context.index = 0;
-        context.count = 0;
-        context.state = null;
-
-        if (this._type.dataType == '?') {
-            context.state = 'Tensor has unknown data type.';
-            return context;
-        }
-        if (!this._type.shape || (this._type.shape.dimensions && this._type.shape.dimensions.length == 0)) {
-            context.state = 'Tensor has no dimensions.';
-            return context;
-        }
-
-        if (!this._data) {
-            context.state = 'Tensor data is empty.';
-            return context;
-        }
-
-        switch (this._type.dataType) {
-            case 'float32':
-                context.data = new DataView(this._data.buffer, this._data.byteOffset, this._data.byteLength);
-                break;
-            default:
-                context.state = 'Tensor data type is not implemented.';
-                break;
-        }
-
-        context.dataType = this._type.dataType;
-        context.shape = this._type.shape.dimensions;
-        return context;
-    }
-
-    _decode(context, dimension) {
-        const shape = context.shape.length == 0 ? [ 1 ] : context.shape;
-        const results = [];
-        const size = shape[dimension];
-        if (dimension == shape.length - 1) {
-            for (let i = 0; i < size; i++) {
-                if (context.count > context.limit) {
-                    results.push('...');
-                    return results;
-                }
-                switch (this._type.dataType) {
-                    case 'float32':
-                        results.push(context.data.getFloat32(context.index, true));
-                        context.index += 4;
-                        context.count++;
-                        break;
-                    default:
-                        throw new barracuda.Error("Unsupported tensor data type '" + this._type.dataType + "'.");
-                }
-            }
-        }
-        else {
-            for (let j = 0; j < size; j++) {
-                if (context.count > context.limit) {
-                    results.push('...');
-                    return results;
-                }
-                results.push(this._decode(context, dimension + 1));
-            }
-        }
-        if (context.shape.length == 0) {
-            return results[0];
-        }
-        return results;
+    get values() {
+        return this._values;
     }
 };
 
@@ -494,43 +402,7 @@ barracuda.Activation = {
     200: "Acos", 201: "Acosh", 202: "Asin", 203: "Asinh", 204: "Atan", 205: "Atanh", 206: "Cos", 207: "Cosh", 208: "Sin", 209: "Sinh", 210: "Tan"
 };
 
-barracuda.BinaryReader = class {
-
-    constructor(buffer) {
-        this._buffer = buffer;
-        this._dataView = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
-        this._position = 0;
-    }
-
-    get position() {
-        return this._position;
-    }
-
-    seek(position) {
-        this._position = position >= 0 ? position : this._length + position;
-    }
-
-    skip(offset) {
-        this._position += offset;
-        if (this._position > this._buffer.length) {
-            throw new barracuda.Error('Expected ' + (this._position - this._buffer.length) + ' more bytes. The file might be corrupted. Unexpected end of file.');
-        }
-    }
-
-    read(length) {
-        const position = this._position;
-        this._position += length;
-        if (this._position > this._buffer.length) {
-            throw new barracuda.Error('Expected ' + (this._position - this._buffer.length) + ' more bytes. The file might be corrupted. Unexpected end of file.');
-        }
-        return this._buffer.slice(position, this._position);
-    }
-
-    int32() {
-        const position = this._position;
-        this.skip(4);
-        return this._dataView.getInt32(position, true);
-    }
+barracuda.BinaryReader = class extends base.BinaryReader {
 
     int32s() {
         const values = new Array(this.int32());
@@ -538,20 +410,6 @@ barracuda.BinaryReader = class {
             values[i] = this.int32();
         }
         return values;
-    }
-
-    int64() {
-        const value = this.int32();
-        if (this.int32() !== 0) {
-            throw new barracuda.Error('Invalid int64 value.');
-        }
-        return value;
-    }
-
-    float32() {
-        const position = this._position;
-        this.skip(4);
-        return this._dataView.getFloat32(position, true);
     }
 
     string() {
@@ -589,15 +447,17 @@ barracuda.Metadata = class {
     constructor() {
         this._types = new Map();
         const register = (id, name, category, inputs) => {
-            this._types.set(id, { name: name, category: category, inputs: (inputs || []).map((input) => { return { name: input }; }) });
+            this._types.set(id, { name: name, category: category, inputs: (inputs || []).map((input) => {
+                return { name: input };
+            }) });
         };
         register(0, 'Nop', '');
         register(1, 'Dense', 'Layer', [ 'input', 'kernel', 'bias' ]);
         register(2, 'MatMul', '', [ 'input', 'kernel', 'bias' ]);
         register(20, 'Conv2D', 'Layer', [ 'input', 'kernel', 'bias' ]);
         register(21, 'DepthwiseConv2D', 'Layer', [ 'input', 'kernel', 'bias' ]);
-        register(22, 'Conv2DTrans', '');
-        register(23, 'Upsample2D', '');
+        register(22, 'Conv2DTrans', 'Layer', [ 'input', 'kernel', 'bias' ]);
+        register(23, 'Upsample2D', 'Data');
         register(25, 'MaxPool2D', 'Pool');
         register(26, 'AvgPool2D', 'Pool');
         register(27, 'GlobalMaxPool2D', 'Pool');
@@ -605,7 +465,7 @@ barracuda.Metadata = class {
         register(29, 'Border2D', '');
         register(30, 'Conv3D', 'Layer');
         register(32, 'Conv3DTrans', 'Layer');
-        register(33, 'Upsample3D', '');
+        register(33, 'Upsample3D', 'Data');
         register(35, 'MaxPool3D', 'Pool');
         register(36, 'AvgPool3D', 'Pool');
         register(37, 'GlobalMaxPool3D', 'Pool');

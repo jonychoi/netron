@@ -6,9 +6,17 @@ var message = message || {};
 message.ModelFactory = class {
 
     match(context) {
-        const obj = context.open('json');
-        if (obj && obj.signature && obj.signature.startsWith('netron:')) {
-            return obj.signature;
+        const stream = context.stream;
+        if (stream) {
+            const buffer = stream.peek(Math.min(64, stream.length));
+            const content = String.fromCharCode.apply(null, buffer);
+            const match = content.match(/^{\s*"signature":\s*"(.*)"\s*,\s*/);
+            if (match && match[1].startsWith('netron:')) {
+                const obj = context.open('json');
+                if (obj && obj.signature && obj.signature.startsWith('netron:')) {
+                    return obj.signature;
+                }
+            }
         }
         return '';
     }
@@ -28,7 +36,9 @@ message.Model = class {
         this._producer = data.producer || '';
         this._version = data.version || '';
         this._description = data.description || '';
-        this._metadata = (data.metadata || []).map((entry) => { return { name: entry.name, value: entry.value }; });
+        this._metadata = (data.metadata || []).map((entry) => {
+            return { name: entry.name, value: entry.value };
+        });
         this._graphs = (data.graphs || []).map((graph) => new message.Graph(graph));
     }
 
@@ -60,9 +70,31 @@ message.Model = class {
 message.Graph = class {
 
     constructor(data) {
-        this._nodes = (data.nodes || []).map((node) => new message.Node(node));
-        this._inputs = (data.inputs || []).map((input) => new message.Parameter(input));
-        this._outputs = (data.outputs || []).map((output) => new message.Parameter(output));
+        this._inputs = [];
+        this._outputs = [];
+        this._nodes = [];
+        const args = (data.arguments || []).map((argument) => new message.Argument(argument));
+        for (const parameter of data.inputs || []) {
+            parameter.arguments = parameter.arguments.map((index) => args[index]).filter((argument) => !argument.initializer);
+            if (parameter.arguments.filter((argument) => !argument.initializer).length > 0) {
+                this._inputs.push(new message.Parameter(parameter));
+            }
+        }
+        for (const parameter of data.outputs || []) {
+            parameter.arguments = parameter.arguments.map((index) => args[index]);
+            if (parameter.arguments.filter((argument) => !argument.initializer).length > 0) {
+                this._inputs.push(new message.Parameter(parameter));
+            }
+        }
+        for (const node of data.nodes || []) {
+            for (const parameter of node.inputs || []) {
+                parameter.arguments = parameter.arguments.map((index) => args[index]);
+            }
+            for (const parameter of node.outputs || []) {
+                parameter.arguments = parameter.arguments.map((index) => args[index]);
+            }
+            this._nodes.push(new message.Node(node));
+        }
     }
 
     get inputs() {
@@ -81,8 +113,8 @@ message.Graph = class {
 message.Parameter = class {
 
     constructor(data) {
-        this._name = data.name;
-        this._arguments = (data.arguments || []).map((argument) => new message.Argument(argument));
+        this._name = data.name || '';
+        this._arguments = (data.arguments || []);
     }
 
     get name() {
@@ -111,14 +143,10 @@ message.Argument = class {
     }
 
     get type() {
-        if (this._initializer) {
+        if (this._initializer && this._initializer.type) {
             return this._initializer.type;
         }
         return this._type;
-    }
-
-    set type(value) {
-        this._type = value;
     }
 
     get initializer() {
@@ -159,9 +187,10 @@ message.Node = class {
 
 message.Attribute = class {
 
-    constructor(attribute) {
-        this._name = attribute.name;
-        this._value = attribute.value;
+    constructor(data) {
+        this._type = data.type || '';
+        this._name = data.name;
+        this._value = data.value;
     }
 
     get name() {
@@ -174,6 +203,51 @@ message.Attribute = class {
 
     get type() {
         return this._type;
+    }
+
+    get visible() {
+        return true;
+    }
+};
+
+message.TensorType = class {
+
+    constructor(data) {
+        this._dataType = data.dataType;
+        this._shape = new message.TensorShape(data.shape);
+    }
+
+    get dataType() {
+        return this._dataType;
+    }
+
+    get shape() {
+        return this._shape;
+    }
+
+    toString() {
+        return this._dataType + this._shape.toString();
+    }
+};
+
+message.TensorShape = class {
+
+    constructor(data) {
+        this._dimensions = data.dimensions;
+    }
+
+    get dimensions() {
+        return this._dimensions;
+    }
+
+    toString() {
+        return '[' + this._dimensions.toString() + ']';
+    }
+};
+
+message.Tensor = class {
+
+    constructor() {
     }
 };
 

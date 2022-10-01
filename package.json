@@ -6,7 +6,8 @@
         "email": "lutzroeder@users.noreply.github.com",
         "url": "https://www.lutzroeder.com"
     },
-    "version": "5.8.6",
+    "version": "6.0.8",
+    "date": "2022-10-01 02:47:13",
     "description": "Visualizer for neural network, deep learning, and machine learning models",
     "license": "MIT",
     "repository": "lutzroeder/netron",
@@ -14,16 +15,16 @@
     "scripts": {
         "postinstall": "electron-builder install-app-deps",
         "start": "[ -d node_modules ] || npm install && npx electron .",
-        "server": "node ./publish/server.js"
+        "server": "python ./publish/python.py build start"
     },
     "dependencies": {
-        "electron-updater": "5.0.1"
+        "electron-updater": "5.2.1"
     },
     "devDependencies": {
-        "electron": "19.0.4",
-        "electron-builder": "23.0.4",
+        "electron": "21.0.1",
+        "electron-builder": "23.3.3",
         "electron-notarize": "1.2.1",
-        "eslint": "8.17.0"
+        "eslint": "8.24.0"
     },
     "eslintConfig": {
         "env": {
@@ -38,7 +39,7 @@
         },
         "rules": {
             "array-callback-return": "error",
-            "brace-style": [ "error", "stroustrup", { "allowSingleLine": true } ],
+            "brace-style": [ "error", "stroustrup"  ],
             "curly": "error",
             "consistent-return": "error",
             "default-case": "error",
@@ -80,6 +81,7 @@
         "fileAssociations": [
             { "ext": "armnn",       "name": "Arm NN Model"             },
             { "ext": "caffemodel",  "name": "Caffe Model"              },
+            { "ext": "circle",      "name": "Circle Model"             },
             { "ext": "ckpt",        "name": "Model Checkpoint"         },
             { "ext": "cmf",         "name": "CNTK Model"               },
             { "ext": "dlc",         "name": "DLC Model"                },
@@ -92,6 +94,7 @@
             { "ext": "lite",        "name": "TensorFlow Lite Model"    },
             { "ext": "mar",         "name": "MXNet Model"              },
             { "ext": "meta",        "name": "TensorFlow Meta Graph"    },
+            { "ext": "mge",         "name": "MegEngine Mge Model"      },
             { "ext": "mlmodel",     "name": "Core ML Model"            },
             { "ext": "mlpackage",   "name": "Core ML Model Package", "isPackage": true },
             { "ext": "mnn",         "name": "MNN Model"                },
@@ -119,6 +122,7 @@
             { "ext": "tfl",         "name": "TensorFlow Lite Model"    },
             { "ext": "tflite",      "name": "TensorFlow Lite Model"    },
             { "ext": "tmfile",      "name": "Tengine Model"            },
+            { "ext": "tm",          "name": "MegEngine Traced Model"   },
             { "ext": "tnnproto",    "name": "TNN Model"                },
             { "ext": "torchscript", "name": "PyTorch Model"            },
             { "ext": "uff",         "name": "UFF Model"                },

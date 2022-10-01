@@ -114,13 +114,13 @@ om.Node = class {
                 const inputNode = graph.op.find(node => node.name === name);
                 const desc = op.input_desc[i];
                 const format = desc.layout;
-                if (inputNode.type === 'Const' && inputNode.attr && inputNode.attr.value && inputNode.attr) {
+                if (inputNode && inputNode.type === 'Const' && inputNode.attr && inputNode.attr.value && inputNode.attr) {
                     let shape = null;
                     const value = inputNode.attr.value.t;
                     if (value.desc.shape != null) {
                         shape = value.desc.shape.dim;
                     }
-                    if (value.desc.attr.origin_shape) {
+                    else if (value.desc.attr.origin_shape) {
                         shape = value.desc.attr.origin_shape.list.i;
                     }
                     let data = null;
@@ -147,7 +147,7 @@ om.Node = class {
                     this._inputs.push(new om.Parameter(parameterName, true, [ argument ]));
                 }
                 else {
-                    const dataType = desc ? om.Utility.dtype(desc.dtype) : 'undefined';
+                    const dataType = desc ? om.Utility.dtype(desc.dtype) : '?';
                     const shape = desc.shape ? desc.shape.dim : undefined;
                     const tensorType = new om.TensorType(dataType, shape, format, null);
                     const identifier = src_index === '0' ? name : name + ':' + src_index;
@@ -387,32 +387,18 @@ om.Argument = class {
 
 om.Tensor = class {
 
-    constructor(kind, type, value) {
+    constructor(category, type, value) {
         this._type = type;
-        this._name = '';
-        this._kind = kind;
+        this._category = category;
         this._data = value;
-        this._shape = type.shape.dimensions;
     }
 
-    get name() {
-        return this._name;
+    get category() {
+        return this._category;
     }
 
     get type() {
         return this._type;
-    }
-
-    get kind() {
-        return this._kind;
-    }
-
-    set kind(value) {
-        this._kind = value;
-    }
-
-    get state() {
-        return 'Tensor data not implemented.';
     }
 };
 
@@ -475,7 +461,7 @@ om.File = class {
     static open(context) {
         const stream = context.stream;
         const signature = [ 0x49, 0x4D, 0x4F, 0x44 ]; // IMOD
-        if (stream.length >= 256 && stream.peek(4).every((value, index) => value === signature[index])) {
+        if (stream && stream.length >= 256 && stream.peek(4).every((value, index) => value === signature[index])) {
             const reader = new base.BinaryReader(stream);
             return new om.File(reader);
         }
@@ -536,7 +522,7 @@ om.File = class {
                         this._model = buffer;
                         break;
                     }
-                    case 1: { // MODEL_WEIGHT
+                    case 1: { // WEIGHTS_DATA
                         this._weights = buffer;
                         break;
                     }

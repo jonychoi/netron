@@ -1,6 +1,7 @@
 
 var host = {};
 var view = view || {};
+var base = base || {};
 
 host.BrowserHost = class {
 
@@ -16,16 +17,17 @@ host.BrowserHost = class {
         };
         this._meta = {};
         for (const element of Array.from(this._document.getElementsByTagName('meta'))) {
-            if (element.content) {
+            if (element.name !== undefined && element.content !== undefined) {
                 this._meta[element.name] = this._meta[element.name] || [];
                 this._meta[element.name].push(element.content);
             }
         }
-        this._type = this._meta.type ? this._meta.type[0] : 'Browser';
-        this._version = this._meta.version ? this._meta.version[0] : null;
-        this._telemetry = this._version && this._version !== '0.0.0';
-        this._environment = new Map();
-        this._environment.set('zoom', 'scroll');
+        this._environment = {
+            'type': this._meta.type ? this._meta.type[0] : 'Browser',
+            'version': this._meta.version ? this._meta.version[0] : null,
+            'date': this._meta.date ? new Date(this._meta.date[0].split(' ').join('T') + 'Z') : new Date(),
+        };
+        this._telemetry = this._environment.version && this._environment.version !== '0.0.0';
     }
 
     get window() {
@@ -37,11 +39,11 @@ host.BrowserHost = class {
     }
 
     get version() {
-        return this._version;
+        return this._environment.version;
     }
 
     get type() {
-        return this._type;
+        return this._environment.type;
     }
 
     get agent() {
@@ -55,76 +57,85 @@ host.BrowserHost = class {
     initialize(view) {
         this._view = view;
         return new Promise((resolve /*, reject */) => {
-            const features = () => {
-                const features = [ 'TextDecoder', 'TextEncoder', 'fetch', 'URLSearchParams', 'HTMLCanvasElement.prototype.toBlob' ];
-                const supported = features.filter((feature) => {
-                    const path = feature.split('.').reverse();
-                    let item = this.window[path.pop()];
-                    while (item && path.length > 0) {
-                        item = item[path.pop()];
-                    }
-                    return !item;
-                });
-                if (supported.length > 0) {
-                    for (const feature of features) {
-                        this.event('Host', 'Browser', feature, 1);
-                    }
-                    this._message('Your browser is not supported.');
-                }
-                else {
-                    resolve();
-                }
-            };
-            const telemetry = () => {
-                if (this._telemetry) {
-                    const script = this.document.createElement('script');
-                    script.setAttribute('type', 'text/javascript');
-                    script.setAttribute('src', 'https://www.google-analytics.com/analytics.js');
-                    script.onload = () => {
-                        if (this.window.ga) {
-                            this.window.ga.l = 1 * new Date();
-                            this.window.ga('create', 'UA-54146-13', 'auto');
-                            this.window.ga('set', 'anonymizeIp', true);
-                        }
-                        features();
-                    };
-                    script.onerror = () => {
-                        features();
-                    };
-                    this.document.body.appendChild(script);
-                }
-                else {
-                    features();
-                }
-            };
-            const consent = () => {
-                this._message('This app uses cookies to report errors and anonymous usage information.', 'Accept', () => {
-                    this._setCookie('consent', 'yes', 30);
-                    telemetry();
-                });
-            };
-            if (this._getCookie('consent')) {
-                telemetry();
+            const age = (new Date() - new Date(this._environment.date)) / ( 24 * 60 * 60 * 1000);
+            if (age > 180) {
+                this._message('Please update to the newest version.', 'Download', () => {
+                    const link = this.document.getElementById('logo-github').href;
+                    this.openURL(link);
+                }, true);
             }
             else {
-                this._request('https://ipinfo.io/json', { 'Content-Type': 'application/json' }, 'utf-8', 2000).then((text) => {
-                    try {
-                        const json = JSON.parse(text);
-                        const countries = ['AT', 'BE', 'BG', 'HR', 'CZ', 'CY', 'DK', 'EE', 'FI', 'FR', 'DE', 'EL', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'NO', 'PL', 'PT', 'SK', 'ES', 'SE', 'GB', 'UK', 'GR', 'EU', 'RO'];
-                        if (json && json.country && !countries.indexOf(json.country) !== -1) {
-                            this._setCookie('consent', Date.now(), 30);
-                            telemetry();
+                const features = () => {
+                    const features = [ 'TextDecoder', 'TextEncoder', 'fetch', 'URLSearchParams', 'HTMLCanvasElement.prototype.toBlob' ];
+                    const supported = features.filter((feature) => {
+                        const path = feature.split('.').reverse();
+                        let item = this.window[path.pop()];
+                        while (item && path.length > 0) {
+                            item = item[path.pop()];
                         }
-                        else {
+                        return !item;
+                    });
+                    if (supported.length > 0) {
+                        for (const feature of features) {
+                            this.event('Host', 'Browser', feature, 1);
+                        }
+                        this._message('Your browser is not supported.');
+                    }
+                    else {
+                        resolve();
+                    }
+                };
+                const telemetry = () => {
+                    if (this._telemetry) {
+                        const script = this.document.createElement('script');
+                        script.setAttribute('type', 'text/javascript');
+                        script.setAttribute('src', 'https://www.google-analytics.com/analytics.js');
+                        script.onload = () => {
+                            if (this.window.ga) {
+                                this.window.ga.l = 1 * new Date();
+                                this.window.ga('create', 'UA-54146-13', 'auto');
+                                this.window.ga('set', 'anonymizeIp', true);
+                            }
+                            features();
+                        };
+                        script.onerror = () => {
+                            features();
+                        };
+                        this.document.body.appendChild(script);
+                    }
+                    else {
+                        features();
+                    }
+                };
+                const consent = () => {
+                    this._message('This app uses cookies to report errors and anonymous usage information.', 'Accept', () => {
+                        this._setCookie('consent', 'yes', 30);
+                        telemetry();
+                    });
+                };
+                if (this._getCookie('consent')) {
+                    telemetry();
+                }
+                else {
+                    this._request('https://ipinfo.io/json', { 'Content-Type': 'application/json' }, 'utf-8', null, 2000).then((text) => {
+                        try {
+                            const json = JSON.parse(text);
+                            const countries = ['AT', 'BE', 'BG', 'HR', 'CZ', 'CY', 'DK', 'EE', 'FI', 'FR', 'DE', 'EL', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'NO', 'PL', 'PT', 'SK', 'ES', 'SE', 'GB', 'UK', 'GR', 'EU', 'RO'];
+                            if (json && json.country && !countries.indexOf(json.country) !== -1) {
+                                this._setCookie('consent', Date.now(), 30);
+                                telemetry();
+                            }
+                            else {
+                                consent();
+                            }
+                        }
+                        catch (err) {
                             consent();
                         }
-                    }
-                    catch (err) {
+                    }).catch(() => {
                         consent();
-                    }
-                }).catch(() => {
-                    consent();
-                });
+                    });
+                }
             }
         });
     }
@@ -135,7 +146,6 @@ host.BrowserHost = class {
         });
 
         const params = new URLSearchParams(this.window.location.search);
-        this._environment.set('zoom', params.has('zoom') ? params.get('zoom') : this._environment.get('zoom'));
 
         this._menu = new host.Dropdown(this, 'menu-button', 'menu-dropdown');
         this._menu.add({
@@ -225,9 +235,13 @@ host.BrowserHost = class {
         const url = params.get('url');
         if (url) {
             const identifier = params.get('identifier') || null;
-            const location = url.replace(new RegExp('^https://github.com/([\\w]*/[\\w]*)/blob/([\\w/_.]*)(\\?raw=true)?$'), 'https://raw.githubusercontent.com/$1/$2');
+            const location = url
+                .replace(new RegExp('^https://github.com/([\\w]*/[\\w]*)/blob/([\\w/_.]*)(\\?raw=true)?$'), 'https://raw.githubusercontent.com/$1/$2')
+                .replace(new RegExp('^https://huggingface.co/(.*)/blob/(.*)$'), 'https://huggingface.co/$1/resolve/$2');
             if (this._view.accept(identifier || location)) {
-                this._openModel(location, identifier);
+                this._openModel(location, identifier).then((identifier) => {
+                    this.document.title = identifier;
+                });
                 return;
             }
         }
@@ -245,6 +259,8 @@ host.BrowserHost = class {
                 openFileDialog.value = '';
                 openFileDialog.click();
             });
+            const extensions = new base.Metadata().extensions.map((extension) => '.' + extension);
+            openFileDialog.setAttribute('accept', extensions.join(', '));
             openFileDialog.addEventListener('change', (e) => {
                 if (e.target && e.target.files && e.target.files.length > 0) {
                     const files = Array.from(e.target.files);
@@ -284,7 +300,7 @@ host.BrowserHost = class {
     }
 
     environment(name) {
-        return this._environment.get(name);
+        return this._environment[name];
     }
 
     error(message, detail) {
@@ -351,14 +367,36 @@ host.BrowserHost = class {
     exception(error, fatal) {
         if (this._telemetry && this.window.ga && error && error.telemetry !== false) {
             const description = [];
-            description.push((error && error.name ? (error.name + ': ') : '') + (error && error.message ? error.message : '(null)'));
+            description.push((error && error.name ? (error.name + ': ') : '') + (error && error.message ? error.message : JSON.stringify(error)));
             if (error.stack) {
-                const match = error.stack.match(/\n {4}at (.*)\((.*)\)/);
+                const format = (file, line, column) => {
+                    return file.split('\\').join('/').split('/').pop() + ':' + line + ':' + column;
+                };
+                const match = error.stack.match(/\n {4}at (.*) \((.*):(\d*):(\d*)\)/);
                 if (match) {
-                    description.push(match[1] + '(' + match[2].split('/').pop() + ')');
+                    description.push(match[1] + ' (' + format(match[2], match[3], match[4]) + ')');
                 }
                 else {
-                    description.push(error.stack.split('\n').shift());
+                    const match = error.stack.match(/\n {4}at (.*):(\d*):(\d*)/);
+                    if (match) {
+                        description.push('(' + format(match[1], match[2], match[3]) + ')');
+                    }
+                    else {
+                        const match = error.stack.match(/\n {4}at (.*)\((.*)\)/);
+                        if (match) {
+                            description.push('(' + format(match[1], match[2], match[3]) + ')');
+                        }
+                        else {
+                            const match = error.stack.match(/\s*@\s*(.*):(.*):(.*)/);
+                            if (match) {
+                                description.push('(' + format(match[1], match[2], match[3]) + ')');
+                            }
+                            else {
+                                const match = error.stack.match(/.*\n\s*(.*)\s*/);
+                                description.push(match ? match[1] : error.stack.split('\n').shift());
+                            }
+                        }
+                    }
                 }
             }
             this.window.ga('send', 'exception', {
@@ -393,7 +431,7 @@ host.BrowserHost = class {
         }
     }
 
-    _request(url, headers, encoding, timeout) {
+    _request(url, headers, encoding, callback, timeout) {
         return new Promise((resolve, reject) => {
             const request = new XMLHttpRequest();
             if (!encoding) {
@@ -408,7 +446,13 @@ host.BrowserHost = class {
                 err.url = url;
                 return err;
             };
+            const progress = (value) => {
+                if (callback) {
+                    callback(value);
+                }
+            };
             request.onload = () => {
+                progress(0);
                 if (request.status == 200) {
                     if (request.responseType == 'arraybuffer') {
                         resolve(new host.BrowserHost.BinaryStream(new Uint8Array(request.response)));
@@ -422,16 +466,23 @@ host.BrowserHost = class {
                 }
             };
             request.onerror = (e) => {
+                progress(0);
                 const err = error(request.status);
                 err.type = e.type;
                 reject(err);
             };
             request.ontimeout = () => {
+                progress(0);
                 request.abort();
                 const err = new Error("The web request timed out in '" + url + "'.");
                 err.type = 'timeout';
                 err.url = url;
                 reject(err);
+            };
+            request.onprogress = (e) => {
+                if (e && e.lengthComputable) {
+                    progress(e.loaded / e.total * 100);
+                }
             };
             request.open('GET', url, true);
             if (headers) {
@@ -444,27 +495,24 @@ host.BrowserHost = class {
     }
 
     _url(file) {
-        let url = file;
-        if (this.window && this.window.location && this.window.location.href) {
-            let location = this.window.location.href.split('?').shift();
-            if (location.endsWith('.html')) {
-                location = location.split('/').slice(0, -1).join('/');
-            }
-            if (location.endsWith('/')) {
-                location = location.slice(0, -1);
-            }
-            url = location + '/' + (file.startsWith('/') ? file.substring(1) : file);
-        }
-        return url;
+        file = file.startsWith('./') ? file.substring(2) : file.startsWith('/') ? file.substring(1) : file;
+        const location = this.window.location;
+        const pathname = location.pathname.endsWith('/') ?
+            location.pathname :
+            location.pathname.split('/').slice(0, -1).join('/') + '/';
+        return location.protocol + '//' + location.host + pathname + file;
     }
 
     _openModel(url, identifier) {
         url = url + ((/\?/).test(url) ? '&' : '?') + 'cb=' + (new Date()).getTime();
         this._view.show('welcome spinner');
-        this._request(url).then((stream) => {
+        const progress = (value) => {
+            this._view.progress(value);
+        };
+        return this._request(url, null, null, progress).then((stream) => {
             const context = new host.BrowserHost.BrowserContext(this, url, identifier, stream);
-            this._view.open(context).then(() => {
-                this.document.title = identifier || context.identifier;
+            return this._view.open(context).then(() => {
+                return identifier || context.identifier;
             }).catch((err) => {
                 if (err) {
                     this._view.error(err, null, 'welcome');

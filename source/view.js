@@ -92,6 +92,13 @@ view.View = class {
         this._page = page;
     }
 
+    progress(percent) {
+        const bar = this._getElementById('progress-bar');
+        if (bar) {
+            bar.style.width = percent.toString() + '%';
+        }
+    }
+
     cut() {
         this._host.document.execCommand('cut');
     }
@@ -165,7 +172,9 @@ view.View = class {
 
     _timeout(time) {
         return new Promise((resolve) => {
-            setTimeout(() => { resolve(); }, time);
+            setTimeout(() => {
+                resolve();
+            }, time);
         });
     }
 
@@ -378,7 +387,6 @@ view.View = class {
             { name: 'Error', message: /^EPERM: operation not permitted/, url: 'https://github.com/lutzroeder/netron/issues/551' },
             { name: 'Error', message: /^EACCES: permission denied/, url: 'https://github.com/lutzroeder/netron/issues/504' },
             { name: 'RangeError', message: /^Offset is outside the bounds of the DataView/, url: 'https://github.com/lutzroeder/netron/issues/563' },
-            { name: 'RangeError', message: /^start offset of Int32Array/, url: 'https://github.com/lutzroeder/netron/issues/565' },
             { name: 'RangeError', message: /^Maximum call stack size exceeded/, url: 'https://github.com/lutzroeder/netron/issues/589' },
             { name: 'RangeError', message: /^Invalid string length/, url: 'https://github.com/lutzroeder/netron/issues/648' },
             { name: 'Error loading model.', message: /^Unsupported file content \(/, url: 'https://github.com/lutzroeder/netron/issues/550' },
@@ -387,17 +395,16 @@ view.View = class {
             { name: 'Error loading model.', message: /^Unsupported JSON content/, url: 'https://github.com/lutzroeder/netron/issues/595' },
             { name: 'Error loading Caffe model.', message: /^File format is not caffe\.NetParameter/, url: 'https://github.com/lutzroeder/netron/issues/563' },
             { name: 'Error loading Darknet model.', message: /^Invalid tensor shape/, url: 'https://github.com/lutzroeder/netron/issues/541' },
+            { name: 'Error loading DaVinci model.', message: /^Unsupported attribute type/, url: 'https://github.com/lutzroeder/netron/issues/926' },
             { name: 'Error loading Keras model.', message: /^Unsupported data object header version/, url: 'https://github.com/lutzroeder/netron/issues/548' },
             { name: 'Error loading MNN model.', message: /^File format is not mnn\.Net/, url: 'https://github.com/lutzroeder/netron/issues/746' },
+            { name: 'Error loading Python model.', message: /^Unknown function/, url: 'https://github.com/lutzroeder/netron/issues/546' },
             { name: 'Error loading PyTorch model.', message: /^File does not contain root module or state dictionary/, url: 'https://github.com/lutzroeder/netron/issues/543' },
             { name: 'Error loading PyTorch model.', message: /^Module does not contain modules/, url: 'https://github.com/lutzroeder/netron/issues/544' },
-            { name: 'Error loading PyTorch model.', message: /^Failed to resolve module/, url: 'https://github.com/lutzroeder/netron/issues/545' },
-            { name: 'Error loading PyTorch model.', message: /^Unsupported function/, url: 'https://github.com/lutzroeder/netron/issues/546' },
-            { name: 'Error loading PyTorch model.', message: /^Unsupported uninitialized argument/, url: 'https://github.com/lutzroeder/netron/issues/547' },
+            { name: 'Error loading PyTorch model.', message: /^Unknown type name/, url: 'https://github.com/lutzroeder/netron/issues/969' },
             { name: 'Error loading ONNX model.', message: /^File format is not onnx\.ModelProto/, url: 'https://github.com/lutzroeder/netron/issues/549' },
             { name: 'Error loading TensorFlow model.', message: /^File text format is not TensorFlow\.js graph-model/, url: 'https://github.com/lutzroeder/netron/issues/764' },
             { name: 'Error loading TensorFlow Lite model.', message: /^Offset is outside the bounds of the DataView/, url: 'https://github.com/lutzroeder/netron/issues/563' },
-            { name: 'Error loading UFF model.', message: /^Unknown attribute/, url: 'https://github.com/lutzroeder/netron/issues/649' }
         ];
         const known = knowns.find((known) => (known.name.length === 0 || known.name === err.name) && err.message.match(known.message));
         const message = err.message + (known ? '\n\nPlease provide information about this issue at ' + known.url + '.' : '');
@@ -716,11 +723,10 @@ view.View = class {
                             this._host.export(file, blob);
                         }
                         else {
-                            const err = new Error();
-                            err.name = 'Error exporting image.';
-                            err.message = 'Image may be too large to render as PNG.';
-                            this._host.exception(err, false);
-                            this._host.error(err.name, err.message);
+                            const error = new Error('Image may be too large to render as PNG.');
+                            error.name = 'Error exporting image.';
+                            this._host.exception(error, false);
+                            this._host.error(error.name, error.message);
                         }
                     }, 'image/png');
                 };
@@ -767,7 +773,7 @@ view.View = class {
                             if (data_type === 'boolean') {
                                 data_type = 'bool';
                             }
-                            const execution = new python.Execution(null);
+                            const execution = new python.Execution();
                             const bytes = execution.invoke('io.BytesIO', []);
                             const dtype = execution.invoke('numpy.dtype', [ data_type ]);
                             const array = execution.invoke('numpy.asarray', [ tensor.value, dtype ]);
@@ -950,8 +956,8 @@ view.Graph = class extends grapher.Graph {
                         }
                     }
                     if (groupName) {
-                        createCluster(groupName);
-                        this.setParent(viewNode.name, groupName);
+                        createCluster(groupName + '\ngroup');
+                        this.setParent(viewNode.name, groupName + '\ngroup');
                     }
                 }
             }
@@ -1052,14 +1058,18 @@ view.Node = class extends grapher.Node {
                 let shape = '';
                 let separator = '';
                 if (type && type.shape && type.shape.dimensions && Array.isArray(type.shape.dimensions)) {
-                    shape = '\u3008' + type.shape.dimensions.map((d) => d ? d : '?').join('\u00D7') + '\u3009';
-                    if (type.shape.dimensions.length === 0 && argument.initializer && !argument.initializer.state) {
+                    shape = '\u3008' + type.shape.dimensions.map((d) => (d !== null && d !== undefined) ? d : '?').join('\u00D7') + '\u3009';
+                    if (type.shape.dimensions.length === 0 && argument.initializer) {
                         try {
-                            shape = argument.initializer.toString();
-                            if (shape && shape.length > 10) {
-                                shape = shape.substring(0, 10) + '\u2026';
+                            const initializer = argument.initializer;
+                            const tensor = new sidebar.Tensor(initializer);
+                            if ((tensor.layout === '<' || tensor.layout === '>' || tensor.layout === '|') && !tensor.empty && tensor.type.dataType !== '?') {
+                                shape = tensor.toString();
+                                if (shape && shape.length > 10) {
+                                    shape = shape.substring(0, 10) + '\u2026';
+                                }
+                                separator = ' = ';
                             }
-                            separator = ' = ';
                         }
                         catch (err) {
                             let type = '?';
@@ -1099,7 +1109,7 @@ view.Node = class extends grapher.Node {
             this._add(node.inner);
         }
         if (node.nodes) {
-            this.canvas = this.canvas();
+            // this.canvas = this.canvas();
         }
     }
 
@@ -1207,7 +1217,7 @@ view.Argument = class {
                     type.shape.dimensions &&
                     type.shape.dimensions.length > 0 &&
                     type.shape.dimensions.every((dim) => !dim || Number.isInteger(dim) || dim instanceof base.Int64 || (typeof dim === 'string'))) {
-                    content = type.shape.dimensions.map((dim) => dim || '?').join('\u00D7');
+                    content = type.shape.dimensions.map((dim) => (dim !== null && dim !== undefined) ? dim : '?').join('\u00D7');
                     content = content.length > 16 ? '' : content;
                 }
                 if (this.context.view.options.names) {
@@ -1329,91 +1339,95 @@ view.ModelContext = class {
         if (!this._content.has(type)) {
             this._content.set(type, undefined);
             const stream = this.stream;
-            const position = stream.position;
-            const signatures = [
-                [ 0x89, 0x48, 0x44, 0x46, 0x0D, 0x0A, 0x1A, 0x0A ], // HDF5
-                [ 0x80, undefined, 0x8a, 0x0a, 0x6c, 0xfc, 0x9c, 0x46, 0xf9, 0x20, 0x6a, 0xa8, 0x50, 0x19 ] // PyTorch
-            ];
-            const skip =
-                signatures.some((signature) => signature.length <= stream.length && stream.peek(signature.length).every((value, index) => signature[index] === undefined || signature[index] === value)) ||
-                Array.from(this._tags).some((pair) => pair[0] !== 'flatbuffers' && pair[1].size > 0) ||
-                Array.from(this._content.values()).some((obj) => obj !== undefined);
-            if (!skip) {
-                switch (type) {
-                    case 'json': {
-                        try {
-                            const reader = json.TextReader.open(this.stream);
-                            if (reader) {
-                                const obj = reader.read();
-                                this._content.set(type, obj);
+            if (stream) {
+                const position = stream.position;
+                const signatures = [
+                    [ 0x89, 0x48, 0x44, 0x46, 0x0D, 0x0A, 0x1A, 0x0A ], // HDF5
+                    [ 0x80, undefined, 0x8a, 0x0a, 0x6c, 0xfc, 0x9c, 0x46, 0xf9, 0x20, 0x6a, 0xa8, 0x50, 0x19 ] // PyTorch
+                ];
+                const skip =
+                    signatures.some((signature) => signature.length <= stream.length && stream.peek(signature.length).every((value, index) => signature[index] === undefined || signature[index] === value)) ||
+                    Array.from(this._tags).some((pair) => pair[0] !== 'flatbuffers' && pair[1].size > 0) ||
+                    Array.from(this._content.values()).some((obj) => obj !== undefined);
+                if (!skip) {
+                    switch (type) {
+                        case 'json': {
+                            try {
+                                const reader = json.TextReader.open(this.stream);
+                                if (reader) {
+                                    const obj = reader.read();
+                                    this._content.set(type, obj);
+                                }
                             }
+                            catch (err) {
+                                // continue regardless of error
+                            }
+                            break;
                         }
-                        catch (err) {
-                            // continue regardless of error
-                        }
-                        break;
-                    }
-                    case 'json.gz': {
-                        try {
-                            const archive = gzip.Archive.open(this.stream);
-                            if (archive) {
-                                const entries = archive.entries;
-                                if (entries.size === 1) {
-                                    const stream = entries.values().next().value;
-                                    const reader = json.TextReader.open(stream);
-                                    if (reader) {
-                                        const obj = reader.read();
-                                        this._content.set(type, obj);
+                        case 'json.gz': {
+                            try {
+                                const archive = gzip.Archive.open(this.stream);
+                                if (archive) {
+                                    const entries = archive.entries;
+                                    if (entries.size === 1) {
+                                        const stream = entries.values().next().value;
+                                        const reader = json.TextReader.open(stream);
+                                        if (reader) {
+                                            const obj = reader.read();
+                                            this._content.set(type, obj);
+                                        }
                                     }
                                 }
                             }
-                        }
-                        catch (err) {
-                            // continue regardless of error
-                        }
-                        break;
-                    }
-                    case 'pkl': {
-                        let unpickler = null;
-                        try {
-                            if (stream.length > 2) {
-                                const zlib = (stream) => {
-                                    const buffer = stream.peek(2);
-                                    if (buffer[0] === 0x78) {
-                                        const check = (buffer[0] << 8) + buffer[1];
-                                        if (check % 31 === 0) {
-                                            const archive = zip.Archive.open(stream);
-                                            return archive.entries.get('');
-                                        }
-                                    }
-                                    return stream;
-                                };
-                                unpickler = python.Unpickler.open(zlib(stream));
+                            catch (err) {
+                                // continue regardless of error
                             }
+                            break;
                         }
-                        catch (err) {
-                            // continue regardless of error
+                        case 'pkl': {
+                            let unpickler = null;
+                            try {
+                                if (stream.length > 2) {
+                                    const zlib = (stream) => {
+                                        const buffer = stream.peek(2);
+                                        if (buffer[0] === 0x78) {
+                                            const check = (buffer[0] << 8) + buffer[1];
+                                            if (check % 31 === 0) {
+                                                const archive = zip.Archive.open(stream);
+                                                return archive.entries.get('');
+                                            }
+                                        }
+                                        return stream;
+                                    };
+                                    const data = zlib(stream);
+                                    unpickler = python.Unpickler.open(data, () => {
+                                        return new python.Execution(null, (error, fatal) => {
+                                            const message = error && error.message ? error.message : error.toString();
+                                            this.exception(new view.Error(message.replace(/\.$/, '') + " in '" + this.identifier + "'."), fatal);
+                                        });
+                                    });
+                                }
+                            }
+                            catch (err) {
+                                // continue regardless of error
+                            }
+                            if (unpickler) {
+                                unpickler.persistent_load = (saved_id) => {
+                                    return saved_id;
+                                };
+                                const obj = unpickler.load();
+                                this._content.set(type, obj);
+                            }
+                            break;
                         }
-                        if (unpickler) {
-                            const execution = new python.Execution(null, (error, fatal) => {
-                                const message = error && error.message ? error.message : error.toString();
-                                this.exception(new view.Error(message.replace(/\.$/, '') + " in '" + this.identifier + "'."), fatal);
-                            });
-                            const persistent_load = (saved_id) => {
-                                return saved_id;
-                            };
-                            const obj = unpickler.load((name, args) => execution.invoke(name, args), persistent_load);
-                            this._content.set(type, obj);
+                        default: {
+                            throw new view.Error("Unsupported open format type '" + type + "'.");
                         }
-                        break;
-                    }
-                    default: {
-                        throw new view.Error("Unsupported open format type '" + type + "'.");
                     }
                 }
-            }
-            if (stream.position !== position) {
-                stream.seek(0);
+                if (stream.position !== position) {
+                    stream.seek(0);
+                }
             }
         }
         return this._content.get(type);
@@ -1423,8 +1437,8 @@ view.ModelContext = class {
         if (!this._tags.has(type)) {
             let tags = new Map();
             const stream = this.stream;
-            const position = stream.position;
             if (stream) {
+                const position = stream.position;
                 const signatures = [
                     [ 0x89, 0x48, 0x44, 0x46, 0x0D, 0x0A, 0x1A, 0x0A ], // HDF5
                     [ 0x80, undefined, 0x8a, 0x0a, 0x6c, 0xfc, 0x9c, 0x46, 0xf9, 0x20, 0x6a, 0xa8, 0x50, 0x19 ], // PyTorch
@@ -1485,9 +1499,9 @@ view.ModelContext = class {
                         tags.clear();
                     }
                 }
-            }
-            if (stream.position !== position) {
-                stream.seek(position);
+                if (stream.position !== position) {
+                    stream.seek(position);
+                }
             }
             this._tags.set(type, tags);
         }
@@ -1495,7 +1509,7 @@ view.ModelContext = class {
     }
 
     metadata(name) {
-        return base.Metadata.open(this, name);
+        return view.Metadata.open(this, name);
     }
 };
 
@@ -1564,6 +1578,7 @@ view.ModelFactoryService = class {
         this._host = host;
         this._extensions = new Set([ '.zip', '.tar', '.tar.gz', '.tgz', '.gz' ]);
         this._factories = [];
+        this.register('./message', [ '.netron']);
         this.register('./pytorch', [ '.pt', '.pth', '.ptl', '.pt1', '.pyt', '.pyth', '.pkl', '.pickle', '.h5', '.t7', '.model', '.dms', '.tar', '.ckpt', '.chkpt', '.tckpt', '.bin', '.pb', '.zip', '.nn', '.torchmodel', '.torchscript', '.pytorch', '.ot', '.params', '.trt' ], [ '.model' ]);
         this.register('./onnx', [ '.onnx', '.onn', '.pb', '.onnxtxt', '.pbtxt', '.prototxt', '.txt', '.model', '.pt', '.pth', '.pkl', '.ort', '.ort.onnx', 'onnxmodel' ]);
         this.register('./mxnet', [ '.json', '.params' ], [ '.mar'] );
@@ -1576,13 +1591,14 @@ view.ModelFactoryService = class {
         this.register('./tf', [ '.pb', '.meta', '.pbtxt', '.prototxt', '.txt', '.pt', '.json', '.index', '.ckpt', '.graphdef', '.pbmm', /.data-[0-9][0-9][0-9][0-9][0-9]-of-[0-9][0-9][0-9][0-9][0-9]$/, /^events.out.tfevents./ ], [ '.zip' ]);
         this.register('./mediapipe', [ '.pbtxt' ]);
         this.register('./uff', [ '.uff', '.pb', '.pbtxt', '.uff.txt', '.trt', '.engine' ]);
-        this.register('./tensorrt', [ '.trt', '.engine', '.model', '.txt', '.uff', '.pb', '.tmfile', '.onnx', '.pth', '.dnn', '.plan' ]);
+        this.register('./tensorrt', [ '.trt', '.trtmodel', '.engine', '.model', '.txt', '.uff', '.pb', '.tmfile', '.onnx', '.pth', '.dnn', '.plan' ]);
         this.register('./numpy', [ '.npz', '.npy', '.pkl', '.pickle' ]);
         this.register('./lasagne', [ '.pkl', '.pickle', '.joblib', '.model', '.pkl.z', '.joblib.z' ]);
         this.register('./lightgbm', [ '.txt', '.pkl', '.model' ]);
         this.register('./keras', [ '.h5', '.hd5', '.hdf5', '.keras', '.json', '.cfg', '.model', '.pb', '.pth', '.weights', '.pkl', '.lite', '.tflite', '.ckpt' ], [ '.zip' ]);
         this.register('./sklearn', [ '.pkl', '.pickle', '.joblib', '.model', '.meta', '.pb', '.pt', '.h5', '.pkl.z', '.joblib.z' ]);
-        this.register('./pickle', [ '.pkl', '.pickle', '.joblib', '.model', '.meta', '.pb', '.pt', '.h5', '.pkl.z', '.joblib.z', '.pdstates' ]);
+        this.register('./megengine', [ '.tm', '.mge' ]);
+        this.register('./pickle', [ '.pkl', '.pickle', '.joblib', '.model', '.meta', '.pb', '.pt', '.h5', '.pkl.z', '.joblib.z', '.pdstates', '.mge' ]);
         this.register('./cntk', [ '.model', '.cntk', '.cmf', '.dnn' ]);
         this.register('./paddle', [ '.pdmodel', '.pdiparams', '.pdparams', '.pdopt', '.paddle', '__model__', '.__model__', '.pbtxt', '.txt', '.tar', '.tar.gz', '.nb' ]);
         this.register('./bigdl', [ '.model', '.bigdl' ]);
@@ -1610,7 +1626,6 @@ view.ModelFactoryService = class {
         this.register('./om', [ '.om', '.onnx', '.pb', '.engine' ]);
         this.register('./nnabla', [ '.nntxt' ], [ '.nnp' ]);
         this.register('./cambricon', [ '.cambricon' ]);
-        this.register('./message', [ '.json']);
     }
 
     register(id, factories, containers) {
@@ -1807,6 +1822,7 @@ view.ModelFactoryService = class {
                 const formats = [
                     { name: 'onnxruntime.experimental.fbs.InferenceSession data', identifier: 'ORTM' },
                     { name: 'tflite.Model data', identifier: 'TFL3' },
+                    { name: 'torch.jit.mobile.serialization.Module data', identifier: 'PTMF' }, // https://github.com/pytorch/pytorch/blob/master/torch/csrc/jit/serialization/mobile_bytecode.fbs
                     { name: 'FlatBuffers ENNC data', identifier: 'ENNC' },
                 ];
                 for (const format of formats) {
@@ -1832,11 +1848,14 @@ view.ModelFactoryService = class {
             }
         };
         const unknown = () => {
-            stream.seek(0);
-            const buffer = stream.peek(Math.min(16, stream.length));
-            const bytes = Array.from(buffer).map((c) => (c < 16 ? '0' : '') + c.toString(16)).join('');
-            const content = stream.length > 268435456 ? '(' + bytes + ') [' + stream.length.toString() + ']': '(' + bytes + ')';
-            throw new view.Error("Unsupported file content " + content + " for extension '." + extension + "' in '" + identifier + "'.", !skip());
+            if (stream) {
+                stream.seek(0);
+                const buffer = stream.peek(Math.min(16, stream.length));
+                const bytes = Array.from(buffer).map((c) => (c < 16 ? '0' : '') + c.toString(16)).join('');
+                const content = stream.length > 268435456 ? '(' + bytes + ') [' + stream.length.toString() + ']': '(' + bytes + ')';
+                throw new view.Error("Unsupported file content " + content + " for extension '." + extension + "' in '" + identifier + "'.", !skip());
+            }
+            throw new view.Error("Unsupported file directory in '" + identifier + "'.", !skip());
         };
         json();
         pbtxt();
@@ -1882,6 +1901,9 @@ view.ModelFactoryService = class {
                         }
                         return model;
                     }).catch((error) => {
+                        if (context.stream && context.stream.position !== 0) {
+                            context.stream.seek(0);
+                        }
                         updateErrorContext(error, context);
                         errors.push(error);
                         return nextModule();
@@ -2084,7 +2106,8 @@ view.ModelFactoryService = class {
                 { name: 'TSD header', value: /^%TSD-Header-###%/ },
                 { name: 'AppleDouble data', value: /^\x00\x05\x16\x07/ },
                 { name: 'TensorFlow Hub module', value: /^\x08\x03$/, identifier: 'tfhub_module.pb' },
-                { name: 'ViSQOL model', value: /^svm_type\snu_svr/ }
+                { name: 'ViSQOL model', value: /^svm_type\s/ },
+                { name: 'SenseTime model', value: /^STEF/ }
             ];
             /* eslint-enable no-control-regex */
             const buffer = stream.peek(Math.min(4096, stream.length));
@@ -2096,6 +2119,60 @@ view.ModelFactoryService = class {
             }
         }
         return Promise.resolve(context);
+    }
+};
+
+view.Metadata = class {
+
+    static open(context, name) {
+        view.Metadata._metadata = view.Metadata._metadata || new Map();
+        if (view.Metadata._metadata.has(name)) {
+            return Promise.resolve(view.Metadata._metadata.get(name));
+        }
+        return context.request(name, 'utf-8', null).then((data) => {
+            const library = new view.Metadata(data);
+            view.Metadata._metadata.set(name, library);
+            return library;
+        }).catch(() => {
+            const library = new view.Metadata(null);
+            view.Metadata._metadata.set(name, library);
+            return library;
+        });
+    }
+
+    constructor(data) {
+        this._types = new Map();
+        this._attributes = new Map();
+        if (data) {
+            const metadata = JSON.parse(data);
+            for (const entry of metadata) {
+                this._types.set(entry.name, entry);
+                if (entry.identifier !== undefined) {
+                    this._types.set(entry.identifier, entry);
+                }
+            }
+        }
+    }
+
+    type(name) {
+        if (!this._types.has(name)) {
+            this._types.set(name, { name: name.toString() });
+        }
+        return this._types.get(name);
+    }
+
+    attribute(type, name) {
+        const key = type + ':' + name;
+        if (!this._attributes.has(key)) {
+            this._attributes.set(key, null);
+            const metadata = this.type(type);
+            if (metadata && Array.isArray(metadata.attributes)) {
+                for (const attribute of metadata.attributes) {
+                    this._attributes.set(type + ':' + attribute.name, attribute);
+                }
+            }
+        }
+        return this._attributes.get(key);
     }
 };
 

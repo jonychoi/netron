@@ -8,32 +8,33 @@ keras.ModelFactory = class {
     match(context) {
         const stream = context.stream;
         const signature = [ 0x89, 0x48, 0x44, 0x46, 0x0D, 0x0A, 0x1A, 0x0A ];
-        if (stream.length > signature.length && stream.peek(signature.length).every((value, index) => value === signature[index])) {
+        if (stream && stream.length > signature.length && stream.peek(signature.length).every((value, index) => value === signature[index])) {
             return 'keras.h5';
         }
-        if (context.open('json')) {
-            const obj = context.open('json');
-            if (obj.mxnet_version || (obj.nodes && obj.arg_nodes && obj.heads)) {
+        const json = context.open('json');
+        if (json) {
+            if (json.mxnet_version || (json.nodes && json.arg_nodes && json.heads)) {
                 return undefined;
             }
-            if (obj.modelTopology && (obj.format === 'layers-model' || obj.modelTopology.class_name || obj.modelTopology.model_config)) {
+            if (json.modelTopology && (json.format === 'layers-model' || json.modelTopology.class_name || json.modelTopology.model_config)) {
                 return 'keras.json.tfjs';
             }
-            if (obj.model_config || (obj.class_name && obj.config)) {
+            if (json.model_config || (json.class_name && json.config)) {
                 return 'keras.json';
             }
-            if (Array.isArray(obj) && obj.every((item) => item.weights && item.paths)) {
+            if (Array.isArray(json) && json.every((item) => item.weights && item.paths)) {
                 return 'keras.json.tfjs.weights';
             }
-            if (obj.tfjsVersion) {
+            if (json.tfjsVersion) {
                 return 'keras.json.tfjs.metadata';
             }
         }
-        if (context.open('pkl')) {
-            const obj = context.open('pkl');
-            if (obj.__class__ && obj.__class__.__module__ === 'keras.engine.sequential' && obj.__class__.__name__ === 'Sequential') {
-                return 'keras.pickle';
-            }
+        const pickle = context.open('pkl');
+        if (pickle &&
+            pickle.__class__ &&
+            pickle.__class__.__module__ === 'keras.engine.sequential' &&
+            pickle.__class__.__name__ === 'Sequential') {
+            return 'keras.pickle';
         }
         return undefined;
     }
@@ -317,7 +318,7 @@ keras.ModelFactory = class {
                 });
             }
             case 'keras.pickle': {
-                const execution = new python.Execution(null);
+                const execution = new python.Execution();
                 const obj = context.open('pkl');
                 const decoder = new TextDecoder('utf-8');
                 const format = 'Keras Pickle' + (obj.keras_version ? ' v' + decoder.decode(obj.keras_version) : '');
@@ -335,8 +336,8 @@ keras.ModelFactory = class {
                             if (Array.isArray(weight_names) && weight_names.length > 0) {
                                 for (const weight_name of weight_names) {
                                     const buffer = layer_weights[weight_name];
-                                    const unpickler = python.Unpickler.open(buffer);
-                                    const variable = unpickler.load((name, args) => execution.invoke(name, args));
+                                    const unpickler = execution.invoke('pickle.Unpickler', [ buffer ]);
+                                    const variable = unpickler.load();
                                     const tensor = new keras.Tensor(weight_name, variable.shape, variable.dtype.__name__, null, true, variable.data);
                                     weights.add(layer_name, tensor);
                                 }
@@ -1034,16 +1035,16 @@ keras.Tensor = class {
         this._data = data;
     }
 
-    get kind() {
-        return 'Weights';
-    }
-
     get name() {
         return this._name;
     }
 
     get type() {
         return this._type;
+    }
+
+    get layout() {
+        return this._littleEndian ? '<' : '>';
     }
 
     get quantization() {
@@ -1055,163 +1056,11 @@ keras.Tensor = class {
         return null;
     }
 
-    get state() {
-        if (Array.isArray(this._data)) {
-            return '';
-        }
-        return this._context().state;
-    }
-
-    get value() {
-        if (Array.isArray(this._data)) {
-            return this._data;
-        }
-        const context = this._context();
-        if (context.state) {
+    get values() {
+        if (Array.isArray(this._data) || this._data === null) {
             return null;
         }
-        context.limit = Number.MAX_SAFE_INTEGER;
-        return this._decode(context, 0);
-    }
-
-    toString() {
-        if (Array.isArray(this._data)) {
-            return keras.Tensor._stringify(this._data, '', '    ');
-        }
-        const context = this._context();
-        if (context.state) {
-            return '';
-        }
-        context.limit = 10000;
-        const value = this._decode(context, 0);
-        return keras.Tensor._stringify(value, '', '    ');
-    }
-
-    _context() {
-        const context = {};
-        context.index = 0;
-        context.count = 0;
-        context.state = null;
-        if (!this._data) {
-            context.state = 'Tensor data is empty.';
-            return context;
-        }
-        switch (this._type.dataType) {
-            case 'boolean':
-            case 'float16':
-            case 'float32':
-            case 'float64':
-            case 'uint8':
-            case 'int32':
-            case 'int64':
-                context.dataType = this._type.dataType;
-                context.view = new DataView(this._data.buffer, this._data.byteOffset, this._data.byteLength);
-                context.littleEndian = this._littleEndian;
-                break;
-            case 'string':
-                context.dataType = this._type.dataType;
-                context.data = this._data;
-                break;
-            default:
-                context.state = 'Tensor data type is not supported.';
-                break;
-        }
-        context.shape = this._type.shape.dimensions;
-        return context;
-    }
-
-    _decode(context, dimension) {
-        const shape = context.shape.length !== 0 ? context.shape : [ 1 ];
-        const results = [];
-        const size = shape[dimension];
-        const littleEndian = context.littleEndian;
-        if (dimension == shape.length - 1) {
-            for (let i = 0; i < size; i++) {
-                if (context.count > context.limit) {
-                    results.push(null);
-                    return results;
-                }
-                switch (context.dataType) {
-                    case 'float16':
-                        results.push(context.view.getFloat16(context.index, littleEndian));
-                        context.index += 2;
-                        break;
-                    case 'float32':
-                        results.push(context.view.getFloat32(context.index, littleEndian));
-                        context.index += 4;
-                        break;
-                    case 'float64':
-                        results.push(context.view.getFloat64(context.index, littleEndian));
-                        context.index += 8;
-                        break;
-                    case 'boolean':
-                        results.push(context.view.getInt8(context.index) !== 0);
-                        context.index += 1;
-                        break;
-                    case 'uint8':
-                        results.push(context.view.getUint8(context.index));
-                        context.index += 1;
-                        break;
-                    case 'int32':
-                        results.push(context.view.getInt32(context.index, littleEndian));
-                        context.index += 4;
-                        break;
-                    case 'int64':
-                        results.push(context.view.getInt64(context.index, littleEndian));
-                        context.index += 8;
-                        break;
-                    case 'string':
-                        results.push(context.view[context.index]);
-                        context.index++;
-                        break;
-                    default:
-                        throw new keras.Error("Unsupported tensor data type '" + context.dataType + "'.");
-                }
-                context.count++;
-            }
-        }
-        else {
-            for (let j = 0; j < size; j++) {
-                if (context.count > context.limit) {
-                    results.push(null);
-                    return results;
-                }
-                results.push(this._decode(context, dimension + 1));
-            }
-        }
-        if (context.shape.length == 0) {
-            return results[0];
-        }
-        return results;
-    }
-
-    static _stringify(value, indentation, indent) {
-        if (Array.isArray(value)) {
-            const result = [];
-            result.push(indentation + '[');
-            const items = value.map((item) => keras.Tensor._stringify(item, indentation + indent, indent));
-            if (items.length > 0) {
-                result.push(items.join(',\n'));
-            }
-            result.push(indentation + ']');
-            return result.join('\n');
-        }
-        if (value === null) {
-            return indentation + '...';
-        }
-        if (typeof value == 'string') {
-            return indentation + '"' + value + '"';
-        }
-        if (value == Infinity) {
-            return indentation + 'Infinity';
-        }
-        if (value == -Infinity) {
-            return indentation + '-Infinity';
-        }
-        if (isNaN(value)) {
-            return indentation + 'NaN';
-        }
-        return indentation + value.toString();
+        return this._data instanceof Uint8Array ? this._data : this._data.peek();
     }
 };
 

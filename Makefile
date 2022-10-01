@@ -28,26 +28,21 @@ update: install
 	@./tools/dnn schema
 	@./tools/mnn sync schema
 	@./tools/mslite sync schema metadata
+	@./tools/megengine sync schema metadata
 	@./tools/nnabla sync schema metadata
 	@./tools/onnx sync install schema metadata
 	@./tools/om schema
 	@./tools/rknn schema
 	@./tools/paddle sync schema
-	@./tools/pytorch sync install schema metadata
+	@./tools/pytorch sync schema
 	@./tools/sklearn sync install metadata
 	@./tools/tf sync install schema metadata
 	@./tools/uff schema
 	@./tools/xmodel sync schema
 
 build_python: install
+	python publish/python.py build version
 	python -m pip install --user build wheel --quiet
-	rm -rf ./source/__pycache__
-	rm -rf ./dist/pypi
-	mkdir -p ./dist/pypi/netron
-	cp -R ./source/* ./dist/pypi/netron
-	cp ./publish/setup.py ./dist/pypi
-	rm ./dist/pypi/netron/electron.* ./dist/pypi/netron/app.js
-	python publish/version.py
 	python -m build --no-isolation --wheel --outdir ./dist/pypi dist/pypi
 
 install_python: build_python
@@ -64,6 +59,8 @@ start: install
 
 lint: install
 	npx eslint source/*.js test/*.js publish/*.js tools/*.js
+	python -m pip install --upgrade --quiet pylint onnx torch torchvision
+	python -m pylint -sn source/*.py publish/*.py test/*.py tools/*.py
 
 test: install
 	node ./test/models.js
@@ -96,7 +93,7 @@ build_web:
 	cp -R ./source/*.ico ./dist/web
 	cp -R ./source/*.png ./dist/web
 	rm -rf ./dist/web/electron.* ./dist/web/app.js
-	sed -i "s/0\.0\.0/$$(grep '"version":' package.json -m1 | cut -d\" -f4)/g" ./dist/web/index.html
+	node ./publish/web.js ./package.json ./dist/web/index.html
 
 publish_web: build_web
 	rm -rf ./dist/gh-pages

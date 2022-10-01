@@ -253,142 +253,19 @@ tengine.Attribute = class {
 
 tengine.Tensor = class {
 
-    constructor(type, data, kind) {
+    constructor(type, data) {
         this._type = type;
         this._data = data;
-        this._kind = kind;
-    }
-
-    get kind() {
-        return this._kind;
     }
 
     get type() {
         return this._type;
     }
 
-    get state() {
-        return this._context().state || null;
+    get values() {
+        return this._data;
     }
 
-    get value() {
-        const context = this._context();
-        if (context.state) {
-            return null;
-        }
-        context.limit = Number.MAX_SAFE_INTEGER;
-        return this._decode(context, 0);
-    }
-
-    toString() {
-        const context = this._context();
-        if (context.state) {
-            return '';
-        }
-        context.limit = 10000;
-        const value = this._decode(context, 0);
-        return JSON.stringify(value, null, 4);
-    }
-
-    _context() {
-        const context = {};
-        context.index = 0;
-        context.count = 0;
-        context.state = null;
-
-        if (this._type.dataType == '?') {
-            context.state = 'Tensor has unknown data type.';
-            return context;
-        }
-        if (!this._type.shape || (this._type.shape.dimensions && this._type.shape.dimensions.length == 0)) {
-            context.state = 'Tensor has no dimensions.';
-            return context;
-        }
-
-        if (!this._data) {
-            context.state = 'Tensor data is empty.';
-            return context;
-        }
-
-        switch (this._type.dataType) {
-            case 'int8':
-            case 'uint8':
-            case 'float16':
-            case 'float32':
-            case 'int32':
-            case 'int16':
-                context.data = new DataView(this._data.buffer, this._data.byteOffset, this._data.byteLength);
-                break;
-            default:
-                context.state = 'Tensor data type is not implemented.';
-                break;
-        }
-
-        context.dataType = this._type.dataType;
-        context.shape = this._type.shape.dimensions;
-        return context;
-    }
-
-    _decode(context, dimension) {
-        const shape = context.shape.length == 0 ? [ 1 ] : context.shape;
-        const results = [];
-        const size = shape[dimension];
-        if (dimension == shape.length - 1) {
-            for (let i = 0; i < size; i++) {
-                if (context.count > context.limit) {
-                    results.push('...');
-                    return results;
-                }
-                switch (this._type.dataType) {
-                    case 'float32':
-                        results.push(context.data.getFloat32(context.index, true));
-                        context.index += 4;
-                        context.count++;
-                        break;
-                    case 'float16':
-                        results.push(context.data.getFloat16(context.index, true));
-                        context.index += 2;
-                        context.count++;
-                        break;
-                    case 'int8':
-                        results.push(context.data.getInt8(context.index, true));
-                        context.index += 1;
-                        context.count++;
-                        break;
-                    case 'uint8':
-                        results.push(context.data.getUint8(context.index, true));
-                        context.index += 1;
-                        context.count++;
-                        break;
-                    case 'int32':
-                        results.push(context.data.getInt32(context.index, true));
-                        context.index += 4;
-                        context.count++;
-                        break;
-                    case 'int16':
-                        results.push(context.data.getInt16(context.index, true));
-                        context.index += 2;
-                        context.count++;
-                        break;
-                    default:
-                        throw new tengine.Error("Unsupported tensor data type '" + this._type.dataType + "'.");
-                }
-            }
-        }
-        else {
-            for (let j = 0; j < size; j++) {
-                if (context.count > context.limit) {
-                    results.push('...');
-                    return results;
-                }
-                results.push(this._decode(context, dimension + 1));
-            }
-        }
-        if (context.shape.length == 0) {
-            return results[0];
-        }
-        return results;
-    }
 };
 
 tengine.TensorType = class {
@@ -485,7 +362,7 @@ tengine.Metadata = class {
 tengine.Reader = class {
 
     static open(stream) {
-        if (stream.length > 4) {
+        if (stream && stream.length > 4) {
             const buffer = stream.peek(2);
             if (buffer[0] < 4 && buffer[1] === 0) {
                 return new tengine.Reader(stream);
@@ -496,8 +373,8 @@ tengine.Reader = class {
 
     constructor(stream) {
         this._stream = stream;
-        // https://github.com/OAID/Tengine/blob/tengine-lite/src/serializer/tm/tm2_format.h
         // https://github.com/OAID/Tengine/wiki/The-format-of-tmfile
+        // https://github.com/OAID/Tengine/blob/tengine-lite/source/serializer/tmfile/tm2_format.h
     }
 
     _read() {
@@ -595,7 +472,7 @@ tengine.Reader = class {
             register(68, 0, 'Absval', []);
             register(69, 0, 'Cast', [ 'i', 'i' ]);
             register(70, 0, 'HardSwish', [ 'f', 'f' ]);
-            register(71, 0, 'Interp', [ 'i', 'i', 'f', 'f', 'i' ]);
+            register(71, 0, 'Interp', [ 'i', 'f', 'f', 'i', 'i' ]);
             register(72, 0, 'SELU', [ 'f', 'f' ]);
             register(73, 0, 'ELU', [ 'f' ]);
             register(74, 0, 'BroadMul', []);
